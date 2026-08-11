@@ -1,28 +1,159 @@
+# ============================================================
+# DocsQuery - Python Project Configuration
+# ============================================================
+
+
+# ------------------------------------------------------------
+# Build System
+# ------------------------------------------------------------
+# Setuptools is responsible for building/installing DocsQuery.
+# ------------------------------------------------------------
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
+
+# ------------------------------------------------------------
+# Project Metadata
+# ------------------------------------------------------------
+
 [project]
 name = "docsquery"
 version = "0.1.0"
+
 description = "Production-oriented domain-specific RAG application"
+
 requires-python = ">=3.12,<3.13"
 
+
+# ------------------------------------------------------------
+# Runtime Dependencies
+# ------------------------------------------------------------
+# These packages are required when DocsQuery is running.
+# ------------------------------------------------------------
+
 dependencies = [
+    # Web API
     "fastapi",
     "uvicorn[standard]",
+
+    # Configuration and validation
     "pydantic",
     "pydantic-settings",
     "python-dotenv",
+
+    # Vector database
     "qdrant-client",
+
+    # Embeddings and cross-encoder reranking
     "sentence-transformers",
+
+    # Keyword retrieval
     "rank-bm25",
+
+    # PDF document extraction
     "pypdf",
 ]
 
+
+# ------------------------------------------------------------
+# Development Dependencies
+# ------------------------------------------------------------
+# These are needed during development/testing but are not
+# required by the production application itself.
+# ------------------------------------------------------------
+
 [project.optional-dependencies]
 dev = [
+    # Testing
     "pytest",
     "pytest-cov",
+
+    # Code quality
     "ruff",
 ]
+
+
+# ------------------------------------------------------------
+# Setuptools Package Discovery
+# ------------------------------------------------------------
+# IMPORTANT:
+#
+# Our repository contains directories such as:
+#
+#     app/
+#     data/
+#     configs/
+#     notebooks/
+#
+# Setuptools may interpret multiple top-level directories as
+# Python packages when using automatic discovery.
+#
+# We only want the actual Python application package:
+#
+#     app/
+#
+# Therefore, explicitly tell setuptools to include packages
+# beginning with "app".
+# ------------------------------------------------------------
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+
+# ------------------------------------------------------------
+# Pytest Configuration
+# ------------------------------------------------------------
+
+[tool.pytest.ini_options]
+
+# Search for tests inside the tests/ directory.
+testpaths = ["tests"]
+
+# Allow tests to import the application using:
+#
+#     from app.config.settings import get_settings
+#
+pythonpath = ["."]
+
+# Show additional information about skipped/failed tests.
+addopts = "-ra"
+
+
+# ------------------------------------------------------------
+# Ruff Configuration
+# ------------------------------------------------------------
+
+[tool.ruff]
+
+# Maximum line length.
+line-length = 88
+
+# Target Python version.
+target-version = "py312"
+
+
+# ------------------------------------------------------------
+# Ruff Linting Rules
+# ------------------------------------------------------------
+
+[tool.ruff.lint]
+
+# E = pycodestyle errors
+# F = pyflakes errors
+# I = import sorting
+select = ["E", "F", "I"]
+
+
+# ------------------------------------------------------------
+# Ruff Formatting
+# ------------------------------------------------------------
+
+[tool.ruff.format]
+
+# Use double quotes for Python strings.
+quote-style = "double"
+
+# Use spaces for indentation.
+indent-style = "space"

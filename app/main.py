@@ -10,7 +10,6 @@ queries, evaluation, etc. will be added here.
 
 from fastapi import FastAPI
 
-
 # ------------------------------------------------------------
 # Create the FastAPI application
 # ------------------------------------------------------------
@@ -48,12 +47,11 @@ app = FastAPI(
 # - Application dependencies
 # ------------------------------------------------------------
 
+
 @app.get("/health")
 def health_check():
     """
     Return the current health status of the application.
     """
 
-    return {
-        "status": "ok"
-    }
+    return {"status": "ok"}

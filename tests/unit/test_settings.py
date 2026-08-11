@@ -49,12 +49,6 @@ def test_model_configuration():
 
     settings = get_settings()
 
-    assert (
-        settings.embedding_model
-        == "sentence-transformers/all-MiniLM-L6-v2"
-    )
+    assert settings.embedding_model == "sentence-transformers/all-MiniLM-L6-v2"
 
-    assert (
-        settings.reranker_model
-        == "cross-encoder/ms-marco-MiniLM-L-6-v2"
-    )
+    assert settings.reranker_model == "cross-encoder/ms-marco-MiniLM-L-6-v2"

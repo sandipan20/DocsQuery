@@ -55,13 +55,9 @@ class Settings(BaseSettings):
     # Model configuration
     # --------------------------------------------------------
 
-    embedding_model: str = (
-        "sentence-transformers/all-MiniLM-L6-v2"
-    )
+    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
-    reranker_model: str = (
-        "cross-encoder/ms-marco-MiniLM-L-6-v2"
-    )
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
     # --------------------------------------------------------
     # Retrieval configuration
@@ -80,11 +76,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         # Read configuration from the .env file.
         env_file=".env",
-
         # Ignore environment variables that are not defined
         # as fields in this Settings class.
         extra="ignore",
-
         # Environment variable names are case-insensitive.
         case_sensitive=False,
     )
