@@ -6,29 +6,47 @@ from pathlib import Path
 
 import pytest
 
-from app.ingestion.models import DocumentPage
+from app.ingestion.models import DocumentChunk
 from app.ingestion.pipeline import ingest_pdf
 
 
 def test_ingest_pdf_returns_chunks():
     """
-    Verify that the ingestion pipeline returns cleaned
-    DocumentPage objects.
+    Verify that the complete ingestion pipeline produces
+    DocumentChunk objects with an automatically generated
+    document ID.
     """
 
-    pdf_path = Path("data/raw/python_documentation.pdf")
+    pdf_path = Path(
+        "data/raw/python_documentation.pdf"
+    )
 
     if not pdf_path.exists():
-        pytest.fail(f"Sample PDF is missing: {pdf_path}")
+        pytest.fail(
+            f"Sample PDF is missing: {pdf_path}"
+        )
 
-    pages = ingest_pdf(str(pdf_path))
+    chunks = ingest_pdf(
+        file_path=str(pdf_path),
+    )
 
-    # At least one page should be returned.
-    assert len(pages) > 0
+    # A real document should produce at least one chunk.
+    assert len(chunks) > 0
 
-    # Every returned item should be a DocumentPage.
-    assert all(isinstance(page, DocumentPage) for page in pages)
+    # Every output should be a DocumentChunk.
+    assert all(
+        isinstance(chunk, DocumentChunk)
+        for chunk in chunks
+    )
 
-    # The first page should have valid metadata.
-    assert pages[0].page_number == 1
-    assert pages[0].source == "python_documentation.pdf"
+    # The document ID should be generated automatically.
+    assert len(chunks[0].document_id) == 64
+
+    # Verify citation metadata.
+    assert chunks[0].page_number >= 1
+    assert chunks[0].source == "python_documentation.pdf"
+
+    # Verify the chunk ID contains the document ID.
+    assert chunks[0].chunk_id.startswith(
+        f"{chunks[0].document_id}-chunk-"
+    )
