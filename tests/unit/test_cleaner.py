@@ -35,21 +35,11 @@ def test_clean_text_removes_excessive_blank_lines():
     Multiple blank lines should be reduced to one.
     """
 
-    raw_text = (
-        "First paragraph.\n"
-        "\n"
-        "\n"
-        "\n"
-        "Second paragraph."
-    )
+    raw_text = "First paragraph.\n\n\n\nSecond paragraph."
 
     cleaned = clean_text(raw_text)
 
-    assert cleaned == (
-        "First paragraph.\n"
-        "\n"
-        "Second paragraph."
-    )
+    assert cleaned == ("First paragraph.\n\nSecond paragraph.")
 
 
 def test_clean_page_preserves_metadata():

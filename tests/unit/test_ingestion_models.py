@@ -48,8 +48,10 @@ def test_document_chunk_creation():
         text="This is a test chunk.",
         source="test.pdf",
         page_number=1,
+        chunk_index=0,
     )
 
     assert chunk.chunk_id == "chunk-001"
     assert chunk.document_id == "document-001"
     assert chunk.page_number == 1
+    assert chunk.chunk_index == 0

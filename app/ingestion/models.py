@@ -1,20 +1,8 @@
 """
 DocsQuery - Ingestion Data Models
 
-This module defines the structured data objects used during
-document ingestion.
-
-The ingestion pipeline will eventually look like:
-
-    PDF
-      ↓
-    DocumentPage
-      ↓
-    DocumentChunk
-      ↓
-    Embedding
-      ↓
-    Vector Database
+Defines the structured objects used throughout document
+ingestion.
 """
 
 from pydantic import BaseModel, Field
@@ -23,16 +11,12 @@ from pydantic import BaseModel, Field
 class DocumentPage(BaseModel):
     """
     Represents one page extracted from a source document.
-
-    Keeping page-level metadata is important because the
-    citation system will eventually need to tell the user
-    exactly where an answer came from.
     """
 
     # 1-based page number.
     page_number: int = Field(ge=1)
 
-    # Text extracted from the page.
+    # Cleaned/extracted page text.
     text: str
 
     # Original document filename.
@@ -41,22 +25,27 @@ class DocumentPage(BaseModel):
 
 class DocumentChunk(BaseModel):
     """
-    Represents a searchable chunk created from a document page.
+    Represents a searchable piece of a document.
 
-    Chunking will be implemented in the next ingestion stage.
+    A chunk is created from one or more portions of a page.
+    Metadata is preserved so that retrieval results can later
+    be converted into citations.
     """
 
     # Unique identifier for this chunk.
     chunk_id: str
 
-    # ID of the original document.
+    # Identifier shared by all chunks from the same document.
     document_id: str
 
-    # Text that will eventually be embedded and searched.
+    # Searchable chunk text.
     text: str
 
-    # Source document filename.
+    # Original document filename.
     source: str
 
-    # Page where this chunk originated.
+    # Page from which this chunk originated.
     page_number: int = Field(ge=1)
+
+    # Position of the chunk within the document.
+    chunk_index: int = Field(ge=0)

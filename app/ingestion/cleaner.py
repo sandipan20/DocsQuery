@@ -77,10 +77,7 @@ def clean_text(text: str) -> str:
     # Remove spaces at the beginning/end of each line.
     # --------------------------------------------------------
 
-    lines = [
-        line.strip()
-        for line in text.split("\n")
-    ]
+    lines = [line.strip() for line in text.split("\n")]
 
     # --------------------------------------------------------
     # Remove excessive blank lines.

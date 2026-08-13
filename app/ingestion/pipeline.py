@@ -39,9 +39,6 @@ def ingest_pdf(file_path: str) -> list[DocumentPage]:
 
     # Step 2:
     # Clean every extracted page.
-    cleaned_pages = [
-        clean_page(page)
-        for page in pages
-    ]
+    cleaned_pages = [clean_page(page) for page in pages]
 
     return cleaned_pages
