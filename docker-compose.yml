@@ -1,0 +1,30 @@
+services:
+
+  # ----------------------------------------------------------
+  # Qdrant Vector Database
+  # ----------------------------------------------------------
+  #
+  # Stores document embeddings and their metadata.
+  # ----------------------------------------------------------
+
+  qdrant:
+    image: qdrant/qdrant:latest
+
+    ports:
+      # REST API
+      - "6333:6333"
+
+      # gRPC API
+      - "6334:6334"
+
+    volumes:
+      # Persist Qdrant data even when the container stops.
+      - qdrant_data:/qdrant/storage
+
+
+# ------------------------------------------------------------
+# Persistent volumes
+# ------------------------------------------------------------
+
+volumes:
+  qdrant_data:

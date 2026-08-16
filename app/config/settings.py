@@ -82,6 +82,15 @@ class Settings(BaseSettings):
         # Environment variable names are case-insensitive.
         case_sensitive=False,
     )
+    # --------------------------------------------------------
+    # Qdrant configuration
+    # --------------------------------------------------------
+
+    # Local Qdrant server address.
+    qdrant_url: str = "http://localhost:6333"
+
+    # Collection where document chunks will be stored.
+    qdrant_collection: str = "docsquery_chunks"
 
 
 @lru_cache
