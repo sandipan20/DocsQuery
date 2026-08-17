@@ -15,6 +15,8 @@ Responsibilities:
         Qdrant similarity search
 """
 
+from uuid import NAMESPACE_URL, uuid5
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
@@ -51,14 +53,10 @@ class QdrantVectorStore:
 
         self.url = url or settings.qdrant_url
 
-        self.collection_name = (
-            collection_name
-            or settings.qdrant_collection
-        )
+        self.collection_name = collection_name or settings.qdrant_collection
 
-        self.client = QdrantClient(
-            url=self.url
-        )
+        # Create the Qdrant client.
+        self.client = QdrantClient(url=self.url)
 
     def create_collection(
         self,
@@ -75,15 +73,16 @@ class QdrantVectorStore:
         # Check whether the collection already exists.
         collections = self.client.get_collections()
 
-        existing_names = {
-            collection.name
-            for collection in collections.collections
-        }
+        existing_names = {collection.name for collection in collections.collections}
 
+        # Don't recreate an existing collection.
         if self.collection_name in existing_names:
             return
 
         # Create a collection using cosine similarity.
+        #
+        # Our embedding service generates normalized vectors,
+        # so cosine similarity is appropriate for semantic search.
         self.client.create_collection(
             collection_name=self.collection_name,
             vectors_config=VectorParams(
@@ -112,19 +111,18 @@ class QdrantVectorStore:
                 If the number of chunks and embeddings differ.
         """
 
+        # Every chunk must have exactly one embedding.
         if len(chunks) != len(embeddings):
-            raise ValueError(
-                "Number of chunks must match number of embeddings."
-            )
+            raise ValueError("Number of chunks must match number of embeddings.")
 
+        # Nothing to store.
         if not chunks:
             return
 
-        # Make sure the collection exists using the first
-        # embedding's dimensionality.
-        self.create_collection(
-            vector_size=len(embeddings[0])
-        )
+        # Create the collection if necessary.
+        #
+        # The first embedding tells us the vector dimension.
+        self.create_collection(vector_size=len(embeddings[0]))
 
         points = []
 
@@ -133,18 +131,40 @@ class QdrantVectorStore:
             embeddings,
             strict=True,
         ):
-            # Qdrant requires a unique point ID.
+            # ------------------------------------------------
+            # Qdrant point IDs cannot be arbitrary strings.
             #
-            # We use the chunk ID because it is already
-            # deterministic.
+            # Qdrant accepts:
+            #   - unsigned integers
+            #   - UUIDs
+            #
+            # Our chunk_id is a string such as:
+            #
+            # 7f0b6770...-chunk-0
+            #
+            # Therefore we deterministically convert the
+            # chunk_id into a UUID using UUID5.
+            # ------------------------------------------------
+
+            point_id = str(
+                uuid5(
+                    NAMESPACE_URL,
+                    chunk.chunk_id,
+                )
+            )
+
             points.append(
                 PointStruct(
-                    id=chunk.chunk_id,
+                    id=point_id,
                     vector=embedding,
                     payload={
+                        # Application-level document identity.
                         "document_id": chunk.document_id,
+                        # Application-level chunk identity.
                         "chunk_id": chunk.chunk_id,
+                        # Actual text used during retrieval.
                         "text": chunk.text,
+                        # Citation metadata.
                         "source": chunk.source,
                         "page_number": chunk.page_number,
                         "chunk_index": chunk.chunk_index,
@@ -152,12 +172,17 @@ class QdrantVectorStore:
                 )
             )
 
+        # ----------------------------------------------------
         # Upsert means:
         #
-        # create if new
-        # update if already exists
+        #   new point      → create
+        #   existing point → update
         #
-        # This is useful for safe re-ingestion.
+        # Because point_id is deterministic, re-indexing the
+        # same document will update the same Qdrant points
+        # instead of creating duplicates.
+        # ----------------------------------------------------
+
         self.client.upsert(
             collection_name=self.collection_name,
             points=points,

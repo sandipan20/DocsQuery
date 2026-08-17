@@ -6,6 +6,7 @@ require a running Qdrant server.
 """
 
 from unittest.mock import patch
+from uuid import UUID
 
 import pytest
 
@@ -28,9 +29,7 @@ def create_chunk() -> DocumentChunk:
     )
 
 
-@patch(
-    "app.retrieval.vector_store.QdrantClient"
-)
+@patch("app.retrieval.vector_store.QdrantClient")
 def test_upsert_rejects_mismatched_lengths(
     mock_client,
 ):
@@ -47,9 +46,7 @@ def test_upsert_rejects_mismatched_lengths(
         )
 
 
-@patch(
-    "app.retrieval.vector_store.QdrantClient"
-)
+@patch("app.retrieval.vector_store.QdrantClient")
 def test_empty_upsert_does_nothing(
     mock_client,
 ):
@@ -67,9 +64,7 @@ def test_empty_upsert_does_nothing(
     store.client.upsert.assert_not_called()
 
 
-@patch(
-    "app.retrieval.vector_store.QdrantClient"
-)
+@patch("app.retrieval.vector_store.QdrantClient")
 def test_upsert_creates_qdrant_point(
     mock_client,
 ):
@@ -105,7 +100,14 @@ def test_upsert_creates_qdrant_point(
     points = call.kwargs["points"]
 
     assert len(points) == 1
-    assert points[0].id == "doc-001-chunk-0"
+
+    # Qdrant receives a valid UUID as its database point ID.
+    UUID(points[0].id)
+
+    # Our original application-level chunk ID remains
+    # available inside the payload.
+    assert points[0].payload["chunk_id"] == "doc-001-chunk-0"
 
     assert points[0].payload["document_id"] == "doc-001"
+
     assert points[0].payload["page_number"] == 1
