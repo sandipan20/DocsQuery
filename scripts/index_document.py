@@ -1,7 +1,7 @@
 """
 DocsQuery - Document Indexing CLI
 
-Indexes a PDF into Qdrant.
+Indexes a PDF into all retrieval systems.
 
 Pipeline:
 
@@ -11,15 +11,22 @@ Pipeline:
      ↓
     DocumentChunk
      ↓
-    Embedding
-     ↓
-    Qdrant
+    ┌───────────────────────┐
+    │ RetrievalIndexManager │
+    └───────────┬───────────┘
+                │
+        ┌───────┴────────┐
+        ▼                ▼
+      BM25             Vector
+        │                │
+        ▼                ▼
+   bm25.json           Qdrant
 """
 
 import argparse
 
 from app.ingestion.pipeline import ingest_pdf
-from app.retrieval.indexer import VectorIndexer
+from app.retrieval.index_manager import RetrievalIndexManager
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -27,9 +34,7 @@ def parse_arguments() -> argparse.Namespace:
     Parse command-line arguments.
     """
 
-    parser = argparse.ArgumentParser(
-        description="Index a PDF into DocsQuery."
-    )
+    parser = argparse.ArgumentParser(description="Index a PDF into DocsQuery.")
 
     parser.add_argument(
         "file_path",
@@ -56,6 +61,11 @@ def parse_arguments() -> argparse.Namespace:
 def main() -> None:
     """
     Run the complete PDF indexing workflow.
+
+    Both retrieval systems are updated:
+
+        1. BM25
+        2. Qdrant vector search
     """
 
     args = parse_arguments()
@@ -64,8 +74,11 @@ def main() -> None:
     print("Starting DocsQuery indexing...")
     print("--------------------------------")
 
+    # --------------------------------------------------------
     # Step 1:
     # Convert the PDF into searchable document chunks.
+    # --------------------------------------------------------
+
     chunks = ingest_pdf(
         file_path=args.file_path,
         chunk_size=args.chunk_size,
@@ -74,13 +87,27 @@ def main() -> None:
 
     print(f"Chunks created: {len(chunks)}")
 
+    # --------------------------------------------------------
     # Step 2:
-    # Generate embeddings and store everything in Qdrant.
-    indexer = VectorIndexer()
+    # Index the same chunks into BOTH retrieval systems.
+    #
+    # BM25:
+    #     data/index/bm25.json
+    #
+    # Vector:
+    #     Qdrant
+    # --------------------------------------------------------
 
-    indexed_count = indexer.index_chunks(chunks)
+    index_manager = RetrievalIndexManager()
+
+    indexed_count = index_manager.index(chunks)
 
     print(f"Chunks indexed: {indexed_count}")
+
+    # --------------------------------------------------------
+    # Step 3:
+    # Display document information.
+    # --------------------------------------------------------
 
     if chunks:
         print(f"Document ID: {chunks[0].document_id}")

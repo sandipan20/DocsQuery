@@ -37,9 +37,7 @@ def generate_document_id(file_path: str) -> str:
 
     # Fail early if the document doesn't exist.
     if not path.exists():
-        raise FileNotFoundError(
-            f"Document not found: {file_path}"
-        )
+        raise FileNotFoundError(f"Document not found: {file_path}")
 
     # SHA-256 is used as a content fingerprint.
     hasher = hashlib.sha256()

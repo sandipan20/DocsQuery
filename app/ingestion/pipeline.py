@@ -71,10 +71,7 @@ def ingest_pdf(
     # Clean extracted text.
     # --------------------------------------------------------
 
-    cleaned_pages = [
-        clean_page(page)
-        for page in pages
-    ]
+    cleaned_pages = [clean_page(page) for page in pages]
 
     # --------------------------------------------------------
     # Stage 4:
