@@ -83,3 +83,6 @@ data/processed/*
 # Application and debugging logs should not normally be
 # committed to the repository.
 *.log
+
+# Generated BM25 index
+data/index/

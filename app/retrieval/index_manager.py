@@ -7,13 +7,12 @@ Current indexes:
 
     1. Qdrant vector index
     2. BM25 keyword index
-
-The manager keeps the two retrieval systems synchronized
-during indexing.
 """
 
+from app.config.settings import get_settings
 from app.ingestion.models import DocumentChunk
 from app.retrieval.bm25_index import BM25Index
+from app.retrieval.bm25_storage import BM25Storage
 from app.retrieval.indexer import VectorIndexer
 
 
@@ -31,9 +30,18 @@ class RetrievalIndexManager:
         Initialize the index manager.
         """
 
+        settings = get_settings()
+
         self.vector_indexer = vector_indexer or VectorIndexer()
 
-        self.bm25_index = bm25_index or BM25Index()
+        # Configure persistent BM25 storage when the caller
+        # does not provide a custom BM25 implementation.
+        if bm25_index is None:
+            storage = BM25Storage(settings.bm25_index_path)
+
+            bm25_index = BM25Index(storage=storage)
+
+        self.bm25_index = bm25_index
 
     def index(
         self,
@@ -53,17 +61,27 @@ class RetrievalIndexManager:
         if not chunks:
             return 0
 
-        # Build the keyword index.
+        # Build and persist BM25.
         bm25_count = self.bm25_index.build(chunks)
 
         # Build the vector index.
         vector_count = self.vector_indexer.index_chunks(chunks)
 
-        # Both indexes should process the same number
-        # of chunks.
+        # Both systems must process the same chunks.
         if bm25_count != vector_count:
             raise RuntimeError(
                 "BM25 and vector indexes contain different numbers of chunks."
             )
 
         return vector_count
+
+    def load_bm25(self) -> int:
+        """
+        Load the persisted BM25 corpus and rebuild the
+        in-memory BM25 search index.
+
+        Returns:
+            Number of chunks loaded.
+        """
+
+        return self.bm25_index.load()

@@ -92,6 +92,12 @@ class Settings(BaseSettings):
     # Collection where document chunks will be stored.
     qdrant_collection: str = "docsquery_chunks"
 
+    # --------------------------------------------------------
+    # BM25 configuration
+    # --------------------------------------------------------
+
+    bm25_index_path: str = "data/index/bm25.json"
+
 
 @lru_cache
 def get_settings() -> Settings:
