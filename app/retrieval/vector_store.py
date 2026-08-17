@@ -26,6 +26,7 @@ from qdrant_client.models import (
 
 from app.config.settings import get_settings
 from app.ingestion.models import DocumentChunk
+from app.retrieval.models import RetrievalResult
 
 
 class QdrantVectorStore:
@@ -192,7 +193,7 @@ class QdrantVectorStore:
         self,
         query_vector: list[float],
         limit: int = 10,
-    ):
+    ) -> list[RetrievalResult]:
         """
         Search Qdrant using a query embedding.
 
@@ -204,11 +205,33 @@ class QdrantVectorStore:
                 Maximum number of results.
 
         Returns:
-            Qdrant search results.
+            RetrievalResult objects ordered by relevance.
         """
 
-        return self.client.query_points(
+        if limit <= 0:
+            raise ValueError("limit must be greater than 0")
+
+        results = self.client.query_points(
             collection_name=self.collection_name,
             query=query_vector,
             limit=limit,
         ).points
+
+        retrieval_results = []
+
+        for result in results:
+            payload = result.payload or {}
+
+            retrieval_results.append(
+                RetrievalResult(
+                    chunk_id=payload["chunk_id"],
+                    document_id=payload["document_id"],
+                    text=payload["text"],
+                    source=payload["source"],
+                    page_number=payload["page_number"],
+                    chunk_index=payload["chunk_index"],
+                    score=float(result.score),
+                )
+            )
+
+        return retrieval_results

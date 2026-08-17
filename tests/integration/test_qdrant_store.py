@@ -15,9 +15,7 @@ def test_qdrant_collection_can_be_created():
     a vector collection.
     """
 
-    collection_name = (
-        f"test_docsquery_{uuid4().hex}"
-    )
+    collection_name = f"test_docsquery_{uuid4().hex}"
 
     store = QdrantVectorStore(
         collection_name=collection_name,
@@ -27,13 +25,8 @@ def test_qdrant_collection_can_be_created():
         vector_size=3,
     )
 
-    collections = (
-        store.client.get_collections()
-    )
+    collections = store.client.get_collections()
 
-    names = {
-        collection.name
-        for collection in collections.collections
-    }
+    names = {collection.name for collection in collections.collections}
 
     assert collection_name in names

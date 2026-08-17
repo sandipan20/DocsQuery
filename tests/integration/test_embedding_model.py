@@ -16,17 +16,12 @@ def test_real_embedding_generation():
 
     service = EmbeddingService()
 
-    vector = service.embed_text(
-        "DocsQuery is a document question answering system."
-    )
+    vector = service.embed_text("DocsQuery is a document question answering system.")
 
     # The vector should contain numerical values.
     assert len(vector) > 0
 
-    assert all(
-        isinstance(value, float)
-        for value in vector
-    )
+    assert all(isinstance(value, float) for value in vector)
 
     # Verify that the returned dimension matches the model.
     assert len(vector) == service.dimension()

@@ -45,15 +45,9 @@ class VectorIndexer:
         easier to test.
         """
 
-        self.embedding_service = (
-            embedding_service
-            or EmbeddingService()
-        )
+        self.embedding_service = embedding_service or EmbeddingService()
 
-        self.vector_store = (
-            vector_store
-            or QdrantVectorStore()
-        )
+        self.vector_store = vector_store or QdrantVectorStore()
 
     def index_chunks(
         self,
@@ -75,17 +69,10 @@ class VectorIndexer:
             return 0
 
         # Extract the text that will be embedded.
-        texts = [
-            chunk.text
-            for chunk in chunks
-        ]
+        texts = [chunk.text for chunk in chunks]
 
         # Generate embeddings in one batch.
-        embeddings = (
-            self.embedding_service.embed_texts(
-                texts
-            )
-        )
+        embeddings = self.embedding_service.embed_texts(texts)
 
         # Store vectors and metadata in Qdrant.
         self.vector_store.upsert_chunks(

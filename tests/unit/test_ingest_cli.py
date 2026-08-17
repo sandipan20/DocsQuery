@@ -20,10 +20,7 @@ def test_cli_requires_file_path(monkeypatch):
 
     args = parse_arguments()
 
-    assert (
-        args.file_path
-        == "data/raw/example.pdf"
-    )
+    assert args.file_path == "data/raw/example.pdf"
 
 
 def test_cli_chunk_configuration(monkeypatch):

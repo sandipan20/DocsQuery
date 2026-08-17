@@ -17,14 +17,10 @@ def test_ingest_pdf_returns_chunks():
     document ID.
     """
 
-    pdf_path = Path(
-        "data/raw/python_documentation.pdf"
-    )
+    pdf_path = Path("data/raw/python_documentation.pdf")
 
     if not pdf_path.exists():
-        pytest.fail(
-            f"Sample PDF is missing: {pdf_path}"
-        )
+        pytest.fail(f"Sample PDF is missing: {pdf_path}")
 
     chunks = ingest_pdf(
         file_path=str(pdf_path),
@@ -34,10 +30,7 @@ def test_ingest_pdf_returns_chunks():
     assert len(chunks) > 0
 
     # Every output should be a DocumentChunk.
-    assert all(
-        isinstance(chunk, DocumentChunk)
-        for chunk in chunks
-    )
+    assert all(isinstance(chunk, DocumentChunk) for chunk in chunks)
 
     # The document ID should be generated automatically.
     assert len(chunks[0].document_id) == 64
@@ -47,9 +40,8 @@ def test_ingest_pdf_returns_chunks():
     assert chunks[0].source == "python_documentation.pdf"
 
     # Verify the chunk ID contains the document ID.
-    assert chunks[0].chunk_id.startswith(
-        f"{chunks[0].document_id}-chunk-"
-    )
+    assert chunks[0].chunk_id.startswith(f"{chunks[0].document_id}-chunk-")
+
 
 def test_ingest_pdf_accepts_custom_chunk_configuration():
     """
@@ -57,14 +49,10 @@ def test_ingest_pdf_accepts_custom_chunk_configuration():
     passed through the ingestion pipeline.
     """
 
-    pdf_path = Path(
-        "data/raw/python_documentation.pdf"
-    )
+    pdf_path = Path("data/raw/python_documentation.pdf")
 
     if not pdf_path.exists():
-        pytest.fail(
-            f"Sample PDF is missing: {pdf_path}"
-        )
+        pytest.fail(f"Sample PDF is missing: {pdf_path}")
 
     chunks = ingest_pdf(
         file_path=str(pdf_path),
@@ -76,7 +64,4 @@ def test_ingest_pdf_accepts_custom_chunk_configuration():
     assert len(chunks) > 0
 
     # Every chunk should contain no more than 100 words.
-    assert all(
-        len(chunk.text.split()) <= 100
-        for chunk in chunks
-    )
+    assert all(len(chunk.text.split()) <= 100 for chunk in chunks)

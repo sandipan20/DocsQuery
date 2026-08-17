@@ -18,7 +18,6 @@ Pipeline:
     Vector Database
 """
 
-
 from functools import lru_cache
 
 from sentence_transformers import SentenceTransformer
@@ -51,10 +50,7 @@ class EmbeddingService:
 
         # Use the explicitly supplied model if provided.
         # Otherwise use the configured embedding model.
-        self.model_name = (
-            model_name
-            or settings.embedding_model
-        )
+        self.model_name = model_name or settings.embedding_model
 
         # The model is loaded lazily by _get_model().
         self._model: SentenceTransformer | None = None
@@ -69,9 +65,7 @@ class EmbeddingService:
 
         # Avoid loading the model repeatedly.
         if self._model is None:
-            self._model = SentenceTransformer(
-                self.model_name
-            )
+            self._model = SentenceTransformer(self.model_name)
 
         return self._model
 
@@ -92,9 +86,7 @@ class EmbeddingService:
         """
 
         if not text.strip():
-            raise ValueError(
-                "Cannot generate an embedding for empty text."
-            )
+            raise ValueError("Cannot generate an embedding for empty text.")
 
         model = self._get_model()
 
@@ -129,9 +121,7 @@ class EmbeddingService:
             return []
 
         if any(not text.strip() for text in texts):
-            raise ValueError(
-                "Cannot generate embeddings for empty text."
-            )
+            raise ValueError("Cannot generate embeddings for empty text.")
 
         model = self._get_model()
 
