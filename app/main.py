@@ -1,57 +1,113 @@
 """
-DocsQuery - Main Application
+DocsQuery - FastAPI Application
 
-This file creates the FastAPI application.
+Main HTTP application.
 
-At this stage, we only have a health-check endpoint.
-As the project grows, routers for documents, search,
-queries, evaluation, etc. will be added here.
+The application lifecycle is responsible for creating expensive
+shared dependencies once at startup.
 """
+
+from contextlib import asynccontextmanager
+from typing import Callable
 
 from fastapi import FastAPI
 
-# ------------------------------------------------------------
-# Create the FastAPI application
-# ------------------------------------------------------------
-# FastAPI() creates the web application object.
-#
-# title:
-#     Name shown in the automatic API documentation.
-#
-# description:
-#     Short explanation of what our API does.
-#
-# version:
-#     Current API/application version.
-# ------------------------------------------------------------
-
-app = FastAPI(
-    title="DocsQuery",
-    description="Production-oriented domain-specific RAG application",
-    version="0.1.0",
-)
+from app.api.v1.search import router as search_router
+from app.core.app_state import AppState
+from app.retrieval.hybrid_retriever import HybridRetriever
+from app.services.retrieval_service import RetrievalService
 
 
-# ------------------------------------------------------------
-# Health Check Endpoint
-# ------------------------------------------------------------
-# GET /health
-#
-# This endpoint is used to verify that the application is
-# running correctly.
-#
-# Later, this endpoint can also be expanded to check:
-# - Database connectivity
-# - Qdrant connectivity
-# - Required services
-# - Application dependencies
-# ------------------------------------------------------------
-
-
-@app.get("/health")
-def health_check():
+def create_retrieval_service() -> RetrievalService:
     """
-    Return the current health status of the application.
+    Build the production retrieval service.
+
+    This function is intentionally separate from the FastAPI
+    application so tests can replace it with a fake service.
+
+    The exact construction of HybridRetriever is kept here
+    rather than inside an HTTP route.
     """
 
-    return {"status": "ok"}
+    retriever = HybridRetriever()
+
+    return RetrievalService(
+        retriever=retriever,
+    )
+
+
+def create_lifespan(
+    retrieval_factory: Callable[[], RetrievalService] = create_retrieval_service,
+):
+    """
+    Create the FastAPI lifespan handler.
+
+    Args:
+        retrieval_factory:
+            Function used to construct the application-wide
+            RetrievalService.
+    """
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        """
+        Initialize and clean up application dependencies.
+        """
+
+        # ----------------------------------------------------
+        # Startup
+        # ----------------------------------------------------
+
+        retrieval_service = retrieval_factory()
+
+        app.state.docsquery = AppState(retrieval_service=retrieval_service)
+
+        yield
+
+        # ----------------------------------------------------
+        # Shutdown
+        # ----------------------------------------------------
+
+        app.state.docsquery = None
+
+    return lifespan
+
+
+def create_app(
+    retrieval_factory: Callable[[], RetrievalService] = create_retrieval_service,
+) -> FastAPI:
+    """
+    Create and configure the FastAPI application.
+
+    The retrieval factory can be replaced during testing.
+    """
+
+    app = FastAPI(
+        title="DocsQuery",
+        description=("Production-oriented domain-specific RAG API."),
+        version="0.1.0",
+        lifespan=create_lifespan(retrieval_factory),
+    )
+
+    @app.get(
+        "/health",
+        tags=["health"],
+    )
+    def health() -> dict[str, str]:
+        """
+        Basic liveness endpoint.
+        """
+
+        return {
+            "status": "ok",
+        }
+
+    app.include_router(
+        search_router,
+        prefix="/api/v1",
+    )
+
+    return app
+
+
+app = create_app()
