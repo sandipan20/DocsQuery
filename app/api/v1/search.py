@@ -1,13 +1,14 @@
 """
 DocsQuery - Search API
 
-HTTP endpoint for document retrieval.
+Exposes hybrid retrieval through HTTP.
 
-The route itself should only handle HTTP concerns.
-The actual retrieval logic belongs to RetrievalService.
+Endpoint:
+
+    POST /api/v1/search
 """
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 
 from app.api.v1.schemas import (
     SearchRequest,
@@ -15,25 +16,11 @@ from app.api.v1.schemas import (
     SearchResult,
 )
 from app.retrieval.models import RetrievalResult
-from app.services.retrieval_service import RetrievalService
 
 router = APIRouter(
     prefix="/search",
     tags=["search"],
 )
-
-
-def get_retrieval_service(
-    request: Request,
-) -> RetrievalService:
-    """
-    Return the application-wide retrieval service.
-
-    The service is created during application startup and
-    reused across requests.
-    """
-
-    return request.app.state.docsquery.retrieval_service
 
 
 def _to_search_result(
@@ -60,24 +47,23 @@ def _to_search_result(
     response_model=SearchResponse,
 )
 def search(
-    request: SearchRequest,
-    service: RetrievalService = Depends(get_retrieval_service),
+    request: Request,
+    body: SearchRequest,
 ) -> SearchResponse:
     """
-    Search documents using the retrieval service.
-
-    FastAPI injects the RetrievalService dependency.
-
-    This makes the endpoint easy to unit test without requiring
-    Qdrant or any other external service.
+    Search documents using hybrid retrieval.
     """
 
-    results = service.search(
-        query=request.query,
-        limit=request.limit,
+    # Get the application-wide dependency container.
+    container = request.app.state.container
+
+    # Execute hybrid retrieval.
+    results = container.retrieval_service.search(
+        query=body.query,
+        limit=body.limit,
     )
 
     return SearchResponse(
-        query=request.query,
+        query=body.query,
         results=[_to_search_result(result) for result in results],
     )

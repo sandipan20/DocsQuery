@@ -3,90 +3,65 @@ DocsQuery - FastAPI Application
 
 Main HTTP application.
 
-The application lifecycle is responsible for creating expensive
-shared dependencies once at startup.
+Current endpoints:
+
+    GET  /health
+    POST /api/v1/search
 """
 
 from contextlib import asynccontextmanager
-from typing import Callable
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from app.api.v1.search import router as search_router
-from app.core.app_state import AppState
-from app.retrieval.hybrid_retriever import HybridRetriever
-from app.services.retrieval_service import RetrievalService
+from app.container import AppContainer
 
 
-def create_retrieval_service() -> RetrievalService:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     """
-    Build the production retrieval service.
+    Manage application startup and shutdown.
 
-    This function is intentionally separate from the FastAPI
-    application so tests can replace it with a fake service.
+    Startup:
+        - Create application dependencies.
+        - Load persistent indexes.
 
-    The exact construction of HybridRetriever is kept here
-    rather than inside an HTTP route.
-    """
-
-    retriever = HybridRetriever()
-
-    return RetrievalService(
-        retriever=retriever,
-    )
-
-
-def create_lifespan(
-    retrieval_factory: Callable[[], RetrievalService] = create_retrieval_service,
-):
-    """
-    Create the FastAPI lifespan handler.
-
-    Args:
-        retrieval_factory:
-            Function used to construct the application-wide
-            RetrievalService.
+    Shutdown:
+        - Future cleanup operations will go here.
     """
 
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        """
-        Initialize and clean up application dependencies.
-        """
+    # --------------------------------------------------------
+    # Startup
+    # --------------------------------------------------------
 
-        # ----------------------------------------------------
-        # Startup
-        # ----------------------------------------------------
+    container = AppContainer()
 
-        retrieval_service = retrieval_factory()
+    loaded_chunks = container.load_indexes()
 
-        app.state.docsquery = AppState(retrieval_service=retrieval_service)
+    # Store the container on the FastAPI application object.
+    app.state.container = container
 
-        yield
+    print(f"DocsQuery startup complete. Loaded {loaded_chunks} BM25 chunks.")
 
-        # ----------------------------------------------------
-        # Shutdown
-        # ----------------------------------------------------
+    yield
 
-        app.state.docsquery = None
+    # --------------------------------------------------------
+    # Shutdown
+    # --------------------------------------------------------
 
-    return lifespan
+    print("DocsQuery shutting down.")
 
 
-def create_app(
-    retrieval_factory: Callable[[], RetrievalService] = create_retrieval_service,
-) -> FastAPI:
+def create_app() -> FastAPI:
     """
     Create and configure the FastAPI application.
-
-    The retrieval factory can be replaced during testing.
     """
 
     app = FastAPI(
         title="DocsQuery",
         description=("Production-oriented domain-specific RAG API."),
         version="0.1.0",
-        lifespan=create_lifespan(retrieval_factory),
+        lifespan=lifespan,
     )
 
     @app.get(
@@ -100,6 +75,30 @@ def create_app(
 
         return {
             "status": "ok",
+        }
+
+    @app.get(
+        "/ready",
+        tags=["health"],
+    )
+    def ready() -> dict[str, str]:
+        """
+        Readiness endpoint.
+
+        Indicates whether the application has loaded the
+        retrieval index required to serve searches.
+        """
+
+        container = app.state.container
+
+        if not container.bm25_loaded:
+            raise HTTPException(
+                status_code=503,
+                detail="Retrieval indexes are not ready.",
+            )
+
+        return {
+            "status": "ready",
         }
 
     app.include_router(
