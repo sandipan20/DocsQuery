@@ -98,6 +98,14 @@ class Settings(BaseSettings):
 
     bm25_index_path: str = "data/index/bm25.json"
 
+    # --------------------------------------------------------
+    # Reranker configuration
+    # --------------------------------------------------------
+
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+    reranker_top_k: int = 5
+
 
 @lru_cache
 def get_settings() -> Settings:

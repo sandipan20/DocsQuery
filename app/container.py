@@ -3,14 +3,14 @@ DocsQuery - Application Dependency Container
 
 Creates and owns long-lived application dependencies.
 
-These dependencies are initialized once when the application
-starts and reused across requests.
+Dependencies are initialized once per application process
+and reused across requests.
 """
 
 from app.config.settings import get_settings
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.bm25_storage import BM25Storage
-from app.retrieval.hybrid_retriever import HybridRetriever
+from app.retrieval.reranker import CrossEncoderReranker
 from app.retrieval.vector_retriever import VectorRetriever
 from app.services.retrieval_service import RetrievalService
 
@@ -22,7 +22,7 @@ class AppContainer:
 
     def __init__(self):
         """
-        Create the dependency container.
+        Create application dependencies.
         """
 
         settings = get_settings()
@@ -42,24 +42,23 @@ class AppContainer:
         self.vector_retriever = VectorRetriever()
 
         # ----------------------------------------------------
-        # Hybrid retrieval
+        # Cross-encoder reranker
         # ----------------------------------------------------
 
-        self.hybrid_retriever = HybridRetriever(
-            bm25_retriever=self.bm25_index.retriever,
-            vector_retriever=self.vector_retriever,
-        )
+        self.reranker = CrossEncoderReranker(model_name=settings.reranker_model)
 
         # ----------------------------------------------------
-        # Application service
+        # Complete retrieval service
         # ----------------------------------------------------
 
         self.retrieval_service = RetrievalService(
-            retriever=self.hybrid_retriever,
+            bm25_index=self.bm25_index,
+            vector_retriever=(self.vector_retriever),
+            reranker=self.reranker,
+            candidate_limit=20,
+            top_k=settings.reranker_top_k,
         )
 
-        # Tracks whether the BM25 index was successfully
-        # loaded during application startup.
         self.bm25_loaded = False
 
     def load_indexes(self) -> int:
