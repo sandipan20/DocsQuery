@@ -26,11 +26,7 @@ def main():
 
     answer = service.generate(
         query="What is Python?",
-        context=(
-            "[C1]\n"
-            "Python is a high-level, general-purpose "
-            "programming language."
-        ),
+        context=("[C1]\nPython is a high-level, general-purpose programming language."),
     )
 
     print("\nGemini response:")
