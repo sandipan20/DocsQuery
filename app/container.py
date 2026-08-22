@@ -16,11 +16,20 @@ Current dependencies:
 """
 
 from app.config.settings import get_settings
+from app.generation.citation_validator import (
+    CitationValidator,
+)
+from app.generation.context_builder import (
+    ContextBuilder,
+)
 from app.generation.llm import LLMService
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.bm25_storage import BM25Storage
 from app.retrieval.reranker import CrossEncoderReranker
 from app.retrieval.vector_retriever import VectorRetriever
+from app.services.generation_service import (
+    GenerationService,
+)
 from app.services.retrieval_service import RetrievalService
 
 
@@ -94,6 +103,12 @@ class AppContainer:
         # ----------------------------------------------------
 
         self.bm25_loaded = False
+
+        self.generation_service = GenerationService(
+            llm_service=self.llm,
+            context_builder=ContextBuilder(),
+            citation_validator=CitationValidator(),
+        )
 
     def load_indexes(self) -> int:
         """
