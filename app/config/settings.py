@@ -36,12 +36,16 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # --------------------------------------------------------
-    # LLM configuration
+    # Gemini configuration
     # --------------------------------------------------------
 
-    llm_api_key: str = ""
+    gemini_api_key: str = ""
 
-    llm_model: str = ""
+    gemini_model: str = "gemini-3.1-flash-lite"
+
+    gemini_temperature: float = 0.0
+
+    gemini_max_tokens: int = 1000
 
     # --------------------------------------------------------
     # Qdrant configuration

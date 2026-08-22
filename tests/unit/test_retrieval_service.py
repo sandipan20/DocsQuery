@@ -95,9 +95,7 @@ def test_search_delegates_to_retrieval_pipeline():
     # a mock so this test only checks service orchestration.
     service.hybrid_retriever = MagicMock()
 
-    service.hybrid_retriever.retrieve.return_value = (
-        candidates
-    )
+    service.hybrid_retriever.retrieve.return_value = candidates
 
     reranker.rerank.return_value = final_results
 
@@ -135,9 +133,7 @@ def test_retriever_errors_are_propagated():
 
     service.hybrid_retriever = MagicMock()
 
-    service.hybrid_retriever.retrieve.side_effect = (
-        ValueError("Query cannot be empty.")
-    )
+    service.hybrid_retriever.retrieve.side_effect = ValueError("Query cannot be empty.")
 
     with pytest.raises(
         ValueError,
