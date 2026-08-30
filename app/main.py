@@ -1,18 +1,22 @@
 """
 DocsQuery - FastAPI Application
 
-Main HTTP application.
+This file creates the main FastAPI application and registers
+all API routes.
 
 Current endpoints:
 
     GET  /health
+    GET  /ready
     POST /api/v1/search
+    POST /api/v1/query
 """
 
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 
+from app.api.v1.query import router as query_router
 from app.api.v1.search import router as search_router
 from app.container import AppContainer
 
@@ -24,45 +28,47 @@ async def lifespan(app: FastAPI):
 
     Startup:
         - Create application dependencies.
-        - Load persistent indexes.
+        - Load persistent retrieval indexes.
 
     Shutdown:
-        - Future cleanup operations will go here.
+        - Reserved for future cleanup.
     """
 
-    # --------------------------------------------------------
-    # Startup
-    # --------------------------------------------------------
-
+    # Create long-lived application dependencies once.
     container = AppContainer()
 
+    # Restore the persistent BM25 index.
     loaded_chunks = container.load_indexes()
 
-    # Store the container on the FastAPI application object.
+    # Store the container on the FastAPI application.
+    # API routes will access it through request.app.state.
     app.state.container = container
 
     print(f"DocsQuery startup complete. Loaded {loaded_chunks} BM25 chunks.")
 
     yield
 
-    # --------------------------------------------------------
-    # Shutdown
-    # --------------------------------------------------------
-
     print("DocsQuery shutting down.")
 
 
 def create_app() -> FastAPI:
     """
-    Create and configure the FastAPI application.
+    Create and configure the DocsQuery FastAPI application.
     """
 
     app = FastAPI(
         title="DocsQuery",
-        description=("Production-oriented domain-specific RAG API."),
+        description="Production-oriented domain-specific RAG API.",
         version="0.1.0",
         lifespan=lifespan,
     )
+
+    # --------------------------------------------------------
+    # Liveness endpoint
+    # --------------------------------------------------------
+    # Answers:
+    # "Is the HTTP application process alive?"
+    # --------------------------------------------------------
 
     @app.get(
         "/health",
@@ -70,12 +76,19 @@ def create_app() -> FastAPI:
     )
     def health() -> dict[str, str]:
         """
-        Basic liveness endpoint.
+        Return basic application health.
         """
 
         return {
             "status": "ok",
         }
+
+    # --------------------------------------------------------
+    # Readiness endpoint
+    # --------------------------------------------------------
+    # Answers:
+    # "Is the application ready to serve requests?"
+    # --------------------------------------------------------
 
     @app.get(
         "/ready",
@@ -83,10 +96,7 @@ def create_app() -> FastAPI:
     )
     def ready() -> dict[str, str]:
         """
-        Readiness endpoint.
-
-        Indicates whether the application has loaded the
-        retrieval index required to serve searches.
+        Return application readiness status.
         """
 
         container = app.state.container
@@ -101,12 +111,28 @@ def create_app() -> FastAPI:
             "status": "ready",
         }
 
+    # --------------------------------------------------------
+    # Register API routers
+    # --------------------------------------------------------
+
+    # Search endpoint:
+    #
+    # POST /api/v1/search
     app.include_router(
         search_router,
+        prefix="/api/v1",
+    )
+
+    # Query endpoint:
+    #
+    # POST /api/v1/query
+    app.include_router(
+        query_router,
         prefix="/api/v1",
     )
 
     return app
 
 
+# Create the application instance used by Uvicorn.
 app = create_app()

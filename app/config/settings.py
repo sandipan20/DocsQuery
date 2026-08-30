@@ -110,6 +110,12 @@ class Settings(BaseSettings):
 
     reranker_top_k: int = 5
 
+    # --------------------------------------------------------
+    # RAG retrieval thresholds
+    # --------------------------------------------------------
+
+    retrieval_min_score: float = 0.0
+
 
 @lru_cache
 def get_settings() -> Settings:

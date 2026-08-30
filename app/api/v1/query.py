@@ -1,0 +1,94 @@
+"""
+DocsQuery - Query API
+
+Complete RAG question-answering endpoint.
+
+Endpoint:
+
+    POST /api/v1/query
+"""
+
+from fastapi import APIRouter, HTTPException, Request
+
+from app.api.v1.schemas import (
+    Citation,
+    QueryRequest,
+    QueryResponse,
+)
+from app.services.rag_service import (
+    InsufficientEvidenceError,
+)
+
+router = APIRouter(
+    prefix="/query",
+    tags=["query"],
+)
+
+
+@router.post(
+    "",
+    response_model=QueryResponse,
+)
+def query(
+    request: Request,
+    body: QueryRequest,
+) -> QueryResponse:
+    """
+    Answer a question using the complete RAG pipeline.
+    """
+
+    container = request.app.state.container
+
+    try:
+        response = container.rag_service.query(
+            query=body.query,
+            top_k=body.top_k,
+        )
+
+    except InsufficientEvidenceError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    # Citation IDs are assigned in the same order as
+    # the reranked results:
+    #
+    # C1 -> results[0]
+    # C2 -> results[1]
+    # C3 -> results[2]
+    #
+    # Build this mapping once instead of repeatedly searching
+    # the result list.
+    citation_map = {
+        f"C{index}": result
+        for index, result in enumerate(
+            response.results,
+            start=1,
+        )
+    }
+
+    citations = []
+
+    for citation_id in response.generated_answer.citations:
+        result = citation_map.get(citation_id)
+
+        # This should never happen because the citation
+        # validator already checks citation IDs.
+        if result is None:
+            continue
+
+        citations.append(
+            Citation(
+                citation_id=citation_id,
+                source=result.source,
+                page_number=result.page_number,
+                chunk_id=result.chunk_id,
+            )
+        )
+
+    return QueryResponse(
+        query=response.query,
+        answer=response.generated_answer.answer,
+        citations=citations,
+    )

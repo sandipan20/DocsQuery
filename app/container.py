@@ -30,6 +30,7 @@ from app.retrieval.vector_retriever import VectorRetriever
 from app.services.generation_service import (
     GenerationService,
 )
+from app.services.rag_service import RAGService
 from app.services.retrieval_service import RetrievalService
 
 
@@ -108,6 +109,11 @@ class AppContainer:
             llm_service=self.llm,
             context_builder=ContextBuilder(),
             citation_validator=CitationValidator(),
+        )
+
+        self.rag_service = RAGService(
+            retrieval_service=self.retrieval_service,
+            generation_service=self.generation_service,
         )
 
     def load_indexes(self) -> int:
