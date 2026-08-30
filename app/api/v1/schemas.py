@@ -93,3 +93,21 @@ class QueryResponse(BaseModel):
     answer: str
 
     citations: list[Citation]
+
+
+class ErrorDetail(BaseModel):
+    """
+    Structured API error information.
+    """
+
+    code: str
+    message: str
+    request_id: str
+
+
+class ErrorResponse(BaseModel):
+    """
+    Standard error response returned by the API.
+    """
+
+    error: ErrorDetail

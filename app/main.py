@@ -15,10 +15,17 @@ Current endpoints:
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.errors import (
+    unexpected_exception_handler,
+)
+from app.api.middleware import request_id_middleware
 from app.api.v1.query import router as query_router
 from app.api.v1.search import router as search_router
+from app.config.settings import get_settings
 from app.container import AppContainer
+from app.logging_config import configure_logging
 
 
 @asynccontextmanager
@@ -130,6 +137,25 @@ def create_app() -> FastAPI:
         query_router,
         prefix="/api/v1",
     )
+
+    app.middleware("http")(request_id_middleware)
+
+    settings = get_settings()
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.api_cors_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "X-Request-ID"],
+    )
+
+    app.add_exception_handler(
+        Exception,
+        unexpected_exception_handler,
+    )
+
+    configure_logging()
 
     return app
 
