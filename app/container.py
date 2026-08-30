@@ -30,6 +30,9 @@ from app.retrieval.vector_retriever import VectorRetriever
 from app.services.generation_service import (
     GenerationService,
 )
+from app.services.health_service import (
+    HealthService,
+)
 from app.services.rag_service import RAGService
 from app.services.retrieval_service import RetrievalService
 
@@ -115,6 +118,8 @@ class AppContainer:
             retrieval_service=self.retrieval_service,
             generation_service=self.generation_service,
         )
+
+        self.health_service = HealthService(self)
 
     def load_indexes(self) -> int:
         """

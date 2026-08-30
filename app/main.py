@@ -101,21 +101,32 @@ def create_app() -> FastAPI:
         "/ready",
         tags=["health"],
     )
-    def ready() -> dict[str, str]:
+    def ready() -> dict:
         """
-        Return application readiness status.
+        Readiness endpoint.
+
+        Returns 200 only when the application has the
+        dependencies required to process requests.
         """
 
         container = app.state.container
 
-        if not container.bm25_loaded:
+        health = container.health_service.check()
+
+        is_ready = all(health.values())
+
+        if not is_ready:
             raise HTTPException(
                 status_code=503,
-                detail="Retrieval indexes are not ready.",
+                detail={
+                    "status": "not_ready",
+                    "dependencies": health,
+                },
             )
 
         return {
             "status": "ready",
+            "dependencies": health,
         }
 
     # --------------------------------------------------------

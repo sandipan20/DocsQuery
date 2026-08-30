@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from app.api.v1.schemas import (
     Citation,
+    QueryMetrics,
     QueryRequest,
     QueryResponse,
 )
@@ -102,4 +103,9 @@ def query(
         query=response.query,
         answer=response.generated_answer.answer,
         citations=citations,
+        metrics=QueryMetrics(
+            retrieval_latency_ms=(response.retrieval_latency_ms),
+            generation_latency_ms=(response.generation_latency_ms),
+            total_latency_ms=(response.total_latency_ms),
+        ),
     )

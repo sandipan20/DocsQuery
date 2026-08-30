@@ -16,7 +16,7 @@ from app.services.rag_service import (
 
 def create_result() -> RetrievalResult:
     """
-    Create predictable evidence.
+    Create predictable evidence for API tests.
     """
 
     return RetrievalResult(
@@ -32,15 +32,18 @@ def create_result() -> RetrievalResult:
 
 def test_query_returns_answer_and_citation():
     """
-    The query endpoint should return a grounded answer
-    together with citation metadata.
+    The query endpoint should return a grounded answer,
+    citation metadata, and RAG performance metrics.
     """
 
     app = create_app()
 
     with TestClient(app) as client:
+        # Replace the real RAG service with a mock so this
+        # unit test does not call Qdrant, the reranker, or Gemini.
         app.state.container.rag_service = MagicMock()
 
+        # Create a predictable fake RAG response.
         app.state.container.rag_service.query.return_value = MagicMock(
             query="What is Python?",
             generated_answer=GeneratedAnswer(
@@ -48,8 +51,13 @@ def test_query_returns_answer_and_citation():
                 citations=["C1"],
             ),
             results=[create_result()],
+            # Mock RAG performance metrics.
+            retrieval_latency_ms=120.0,
+            generation_latency_ms=500.0,
+            total_latency_ms=620.0,
         )
 
+        # Send the HTTP request to the API.
         response = client.post(
             "/api/v1/query",
             json={
@@ -58,12 +66,15 @@ def test_query_returns_answer_and_citation():
             },
         )
 
+    # Verify successful HTTP response.
     assert response.status_code == 200
 
     body = response.json()
 
+    # Verify generated answer.
     assert body["answer"] == "Python is a programming language. [C1]"
 
+    # Verify citation metadata.
     assert body["citations"] == [
         {
             "citation_id": "C1",
@@ -72,6 +83,11 @@ def test_query_returns_answer_and_citation():
             "chunk_id": "chunk-001",
         }
     ]
+
+    # Verify RAG performance metrics.
+    assert body["metrics"]["retrieval_latency_ms"] == 120.0
+    assert body["metrics"]["generation_latency_ms"] == 500.0
+    assert body["metrics"]["total_latency_ms"] == 620.0
 
 
 def test_query_returns_404_when_evidence_is_missing():
@@ -83,8 +99,10 @@ def test_query_returns_404_when_evidence_is_missing():
     app = create_app()
 
     with TestClient(app) as client:
+        # Replace the real RAG service with a mock.
         app.state.container.rag_service = MagicMock()
 
+        # Simulate insufficient retrieval evidence.
         app.state.container.rag_service.query.side_effect = InsufficientEvidenceError(
             "No relevant evidence was found."
         )
@@ -121,7 +139,8 @@ def test_query_rejects_empty_query():
 
 def test_query_rejects_invalid_top_k():
     """
-    The API should reject an invalid top_k.
+    The API should reject a top_k value outside the
+    allowed range.
     """
 
     app = create_app()

@@ -83,6 +83,16 @@ class QueryRequest(BaseModel):
     )
 
 
+class QueryMetrics(BaseModel):
+    """
+    Performance metrics for one RAG request.
+    """
+
+    retrieval_latency_ms: float
+    generation_latency_ms: float
+    total_latency_ms: float
+
+
 class QueryResponse(BaseModel):
     """
     Final response returned by DocsQuery.
@@ -93,6 +103,8 @@ class QueryResponse(BaseModel):
     answer: str
 
     citations: list[Citation]
+
+    metrics: QueryMetrics
 
 
 class ErrorDetail(BaseModel):
