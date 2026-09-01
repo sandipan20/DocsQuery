@@ -16,6 +16,10 @@ from app.retrieval.bm25_storage import BM25Storage
 def test_dataset_loads(tmp_path: Path):
     """
     A valid dataset should load successfully.
+
+    This test uses version 1.0.0 intentionally. It verifies that
+    the loader preserves whatever version is stored in the input
+    file rather than forcing one specific version.
     """
 
     dataset_path = tmp_path / "dataset.json"
@@ -28,6 +32,7 @@ def test_dataset_loads(tmp_path: Path):
                     {
                         "example_id": "q001",
                         "query": "What is Python?",
+                        "query_type": "general",
                         "relevant_chunk_ids": ["chunk-001"],
                     }
                 ],
@@ -38,8 +43,11 @@ def test_dataset_loads(tmp_path: Path):
 
     dataset = load_evaluation_dataset(str(dataset_path))
 
+    # The loader should preserve the version from the input file.
     assert dataset.version == "1.0.0"
+
     assert len(dataset.examples) == 1
+
     assert dataset.examples[0].query == ("What is Python?")
 
 
@@ -57,6 +65,8 @@ def test_invalid_dataset_fails(
 ):
     """
     Invalid dataset structure should be rejected.
+
+    The dataset must contain both a version and examples.
     """
 
     dataset_path = tmp_path / "invalid.json"
@@ -74,16 +84,21 @@ def test_real_retrieval_dataset_loads():
     """
     Verify that the project's actual evaluation dataset
     is valid.
+
+    The real project dataset was upgraded to version 1.1.0
+    when query_type was added.
     """
 
     dataset = load_evaluation_dataset("data/evaluation/retrieval_dataset.json")
 
-    assert dataset.version == "1.0.0"
+    assert dataset.version == "1.1.0"
+
     assert len(dataset.examples) >= 3
 
     for example in dataset.examples:
         assert example.example_id
         assert example.query.strip()
+        assert example.query_type.strip()
         assert example.relevant_chunk_ids
 
 
@@ -91,6 +106,9 @@ def test_real_evaluation_chunk_ids_exist():
     """
     Verify that every ground-truth chunk ID in the evaluation
     dataset exists in the indexed corpus.
+
+    This prevents the evaluation dataset from referencing
+    deleted, mistyped, or nonexistent chunks.
     """
 
     # Load the evaluation labels.

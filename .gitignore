@@ -90,3 +90,5 @@ data/index/
 
 # Generated evaluation results
 data/evaluation/retrieval_results.json
+# Generated retrieval diagnostics
+data/evaluation/retrieval_diagnostics.json

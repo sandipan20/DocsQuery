@@ -98,3 +98,11 @@ class BM25Storage:
         """
 
         return self.file_path.exists()
+
+    def delete(self) -> None:
+        """
+        Delete the persisted BM25 corpus if it exists.
+        """
+
+        if self.file_path.exists():
+            self.file_path.unlink()

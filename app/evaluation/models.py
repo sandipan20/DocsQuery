@@ -1,14 +1,8 @@
 """
 DocsQuery - Evaluation Models
 
-Defines the structured representation of our evaluation
-dataset.
-
-An evaluation example contains:
-
-    Query
-      +
-    Ground-truth relevant chunks
+Defines the structured representation of the retrieval
+evaluation dataset.
 """
 
 from pydantic import BaseModel, Field
@@ -16,21 +10,36 @@ from pydantic import BaseModel, Field
 
 class EvaluationExample(BaseModel):
     """
-    One evaluation question and its expected evidence.
+    Represents one retrieval evaluation question.
+
+    Each example contains:
+
+    - a unique identifier
+    - the user query
+    - the type/category of the query
+    - one or more ground-truth relevant chunks
     """
 
     # Unique identifier for this evaluation example.
     example_id: str
 
-    # The question submitted to DocsQuery.
+    # The natural-language question sent to the retriever.
     query: str = Field(
         min_length=1,
     )
 
-    # Chunk IDs that are considered relevant answers/evidence.
+    # Category of the query.
     #
-    # Multiple chunks are allowed because a question may require
-    # information from more than one part of a document.
+    # This helps us later determine whether retrieval performs
+    # differently for branching, merging, rebasing, etc.
+    query_type: str = Field(
+        min_length=1,
+    )
+
+    # Chunk IDs that are considered relevant for this query.
+    #
+    # More than one chunk is allowed because some questions
+    # require evidence from multiple sections of the corpus.
     relevant_chunk_ids: list[str] = Field(
         min_length=1,
     )
@@ -38,11 +47,14 @@ class EvaluationExample(BaseModel):
 
 class EvaluationDataset(BaseModel):
     """
-    Complete evaluation dataset.
+    Represents the complete retrieval evaluation dataset.
     """
 
-    # Version the dataset so changes are traceable.
+    # Dataset version. This changes when the dataset schema
+    # or ground-truth examples are meaningfully updated.
     version: str
 
     # All evaluation questions.
-    examples: list[EvaluationExample]
+    examples: list[EvaluationExample] = Field(
+        min_length=1,
+    )

@@ -1,39 +1,37 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "examples": [
     {
       "example_id": "q001",
       "query": "What does git init do?",
+      "query_type": "repository-basics",
       "relevant_chunk_ids": [
-        "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0"
+        "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-51"
       ]
     },
     {
       "example_id": "q002",
-      "query": "How do I create a Git commit?",
+      "query": "How do I create a new Git branch?",
+      "query_type": "branching",
       "relevant_chunk_ids": [
-        "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0"
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-430"
       ]
     },
     {
       "example_id": "q003",
-      "query": "How do I create a new Git branch?",
+      "query": "How do I merge a branch?",
+      "query_type": "merging",
       "relevant_chunk_ids": [
         "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0"
       ]
     },
     {
       "example_id": "q004",
-      "query": "How do I switch to another Git branch?",
+      "query": "What is Git rebase?",
+      "query_type": "rebasing",
       "relevant_chunk_ids": [
-        "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0"
-      ]
-    },
-    {
-      "example_id": "q005",
-      "query": "How do I merge a Git branch?",
-      "relevant_chunk_ids": [
-        "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0"
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-335"
       ]
     }
   ]

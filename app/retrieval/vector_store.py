@@ -235,3 +235,40 @@ class QdrantVectorStore:
             )
 
         return retrieval_results
+
+    def recreate_collection(
+        self,
+        vector_size: int,
+    ) -> None:
+        """
+        Delete the existing Qdrant collection and create
+        a completely fresh one.
+
+        This is used when rebuilding the entire corpus from
+        scratch during development and evaluation.
+
+        WARNING:
+            This permanently deletes the current collection
+            and all vectors stored inside it.
+        """
+
+        # Get all collections currently available in Qdrant.
+        collections = self.client.get_collections()
+
+        # Extract their names so we can check whether our
+        # collection already exists.
+        existing_names = {collection.name for collection in collections.collections}
+
+        # Delete the old collection when it exists.
+        if self.collection_name in existing_names:
+            self.client.delete_collection(collection_name=self.collection_name)
+
+        # Create a completely clean collection using the
+        # embedding vector dimension supplied by the caller.
+        self.client.create_collection(
+            collection_name=self.collection_name,
+            vectors_config=VectorParams(
+                size=vector_size,
+                distance=Distance.COSINE,
+            ),
+        )

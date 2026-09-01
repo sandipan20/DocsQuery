@@ -85,3 +85,66 @@ class RetrievalIndexManager:
         """
 
         return self.bm25_index.load()
+
+    def rebuild(
+        self,
+        chunks: list[DocumentChunk],
+    ) -> int:
+        """
+        Completely rebuild BM25 and vector indexes.
+
+        This should be used when the source corpus has changed
+        and we want a clean retrieval state.
+
+        Args:
+            chunks:
+                Complete corpus of document chunks.
+
+        Returns:
+            Number of indexed chunks.
+        """
+
+        if not chunks:
+            raise ValueError("Cannot rebuild indexes from an empty corpus.")
+
+        # ----------------------------------------------------
+        # Rebuild BM25
+        # ----------------------------------------------------
+
+        if self.bm25_index.storage is None:
+            raise RuntimeError("BM25 storage is not configured.")
+
+        self.bm25_index.storage.delete()
+
+        bm25_count = self.bm25_index.build(chunks)
+
+        # ----------------------------------------------------
+        # Rebuild Qdrant
+        # ----------------------------------------------------
+
+        if not chunks:
+            return 0
+
+        # Generate embeddings once so we know the vector size.
+        texts = [chunk.text for chunk in chunks]
+
+        embeddings = self.vector_indexer.embedding_service.embed_texts(texts)
+
+        self.vector_indexer.vector_store.recreate_collection(
+            vector_size=len(embeddings[0])
+        )
+
+        self.vector_indexer.vector_store.upsert_chunks(
+            chunks=chunks,
+            embeddings=embeddings,
+        )
+
+        vector_count = len(chunks)
+
+        if bm25_count != vector_count:
+            raise RuntimeError(
+                "BM25 and vector indexes contain different "
+                "numbers of chunks after rebuild."
+            )
+
+        return vector_count
