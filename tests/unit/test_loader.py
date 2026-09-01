@@ -38,7 +38,7 @@ def test_load_real_pdf():
     Verify that the loader successfully extracts a real PDF.
     """
 
-    pdf_path = Path("data/raw/python_documentation.pdf")
+    pdf_path = Path("data/raw/git_cheat_sheet.pdf")
 
     if not pdf_path.exists():
         pytest.fail(f"Sample PDF is missing: {pdf_path}")
@@ -57,7 +57,7 @@ def test_load_real_pdf():
     assert first_page.page_number == 1
 
     # Verify source metadata.
-    assert first_page.source == "python_documentation.pdf"
+    assert first_page.source == "git_cheat_sheet.pdf"
 
     # Verify extracted text.
     assert isinstance(first_page.text, str)

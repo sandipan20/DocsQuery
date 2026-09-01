@@ -3,23 +3,37 @@
   "examples": [
     {
       "example_id": "q001",
-      "query": "What is Python?",
+      "query": "What does git init do?",
       "relevant_chunk_ids": [
-        "REPLACE_WITH_REAL_CHUNK_ID"
+        "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0"
       ]
     },
     {
       "example_id": "q002",
-      "query": "How does Python handle errors?",
+      "query": "How do I create a Git commit?",
       "relevant_chunk_ids": [
-        "REPLACE_WITH_REAL_CHUNK_ID"
+        "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0"
       ]
     },
     {
       "example_id": "q003",
-      "query": "What is a function in Python?",
+      "query": "How do I create a new Git branch?",
       "relevant_chunk_ids": [
-        "REPLACE_WITH_REAL_CHUNK_ID"
+        "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0"
+      ]
+    },
+    {
+      "example_id": "q004",
+      "query": "How do I switch to another Git branch?",
+      "relevant_chunk_ids": [
+        "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0"
+      ]
+    },
+    {
+      "example_id": "q005",
+      "query": "How do I merge a Git branch?",
+      "relevant_chunk_ids": [
+        "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0"
       ]
     }
   ]

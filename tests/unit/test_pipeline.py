@@ -17,7 +17,7 @@ def test_ingest_pdf_returns_chunks():
     document ID.
     """
 
-    pdf_path = Path("data/raw/python_documentation.pdf")
+    pdf_path = Path("data/raw/git_cheat_sheet.pdf")
 
     if not pdf_path.exists():
         pytest.fail(f"Sample PDF is missing: {pdf_path}")
@@ -37,7 +37,7 @@ def test_ingest_pdf_returns_chunks():
 
     # Verify citation metadata.
     assert chunks[0].page_number >= 1
-    assert chunks[0].source == "python_documentation.pdf"
+    assert chunks[0].source == "git_cheat_sheet.pdf"
 
     # Verify the chunk ID contains the document ID.
     assert chunks[0].chunk_id.startswith(f"{chunks[0].document_id}-chunk-")
@@ -49,7 +49,7 @@ def test_ingest_pdf_accepts_custom_chunk_configuration():
     passed through the ingestion pipeline.
     """
 
-    pdf_path = Path("data/raw/python_documentation.pdf")
+    pdf_path = Path("data/raw/git_cheat_sheet.pdf")
 
     if not pdf_path.exists():
         pytest.fail(f"Sample PDF is missing: {pdf_path}")
