@@ -86,3 +86,7 @@ data/processed/*
 
 # Generated BM25 index
 data/index/
+
+
+# Generated evaluation results
+data/evaluation/retrieval_results.json
