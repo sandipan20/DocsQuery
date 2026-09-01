@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "examples": [
+    {
+      "example_id": "q001",
+      "query": "What is Python?",
+      "relevant_chunk_ids": [
+        "REPLACE_WITH_REAL_CHUNK_ID"
+      ]
+    },
+    {
+      "example_id": "q002",
+      "query": "How does Python handle errors?",
+      "relevant_chunk_ids": [
+        "REPLACE_WITH_REAL_CHUNK_ID"
+      ]
+    },
+    {
+      "example_id": "q003",
+      "query": "What is a function in Python?",
+      "relevant_chunk_ids": [
+        "REPLACE_WITH_REAL_CHUNK_ID"
+      ]
+    }
+  ]
+}

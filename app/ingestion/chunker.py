@@ -8,9 +8,8 @@ Initial strategy:
     - 500 words per chunk
     - 50 words overlap
 
-These values are starting points, not permanent choices.
-They will eventually be evaluated using our RAG evaluation
-pipeline.
+The chunker preserves document and page metadata so that
+retrieved chunks can later be traced back to their source.
 """
 
 from app.ingestion.models import DocumentChunk, DocumentPage
@@ -23,32 +22,28 @@ def chunk_page(
     overlap: int = 50,
 ) -> list[DocumentChunk]:
     """
-    Split a document page into overlapping word-based chunks.
+    Split one document page into overlapping chunks.
 
     Args:
         page:
-            Cleaned DocumentPage.
+            Cleaned document page.
 
         document_id:
-            Unique identifier for the source document.
+            Stable document identifier.
 
         chunk_size:
-            Maximum number of words in each chunk.
+            Maximum number of words per chunk.
 
         overlap:
-            Number of words repeated between adjacent chunks.
+            Number of words shared between adjacent chunks.
 
     Returns:
-        A list of DocumentChunk objects.
+        List of DocumentChunk objects.
 
-    Raises:
-        ValueError:
-            If chunk_size or overlap has an invalid value.
+    Note:
+        chunk_index starts at zero for this page only.
+        Global chunk IDs are assigned by chunk_pages().
     """
-
-    # --------------------------------------------------------
-    # Validate chunk configuration.
-    # --------------------------------------------------------
 
     if chunk_size <= 0:
         raise ValueError("chunk_size must be greater than 0")
@@ -59,10 +54,6 @@ def chunk_page(
     if overlap >= chunk_size:
         raise ValueError("overlap must be smaller than chunk_size")
 
-    # --------------------------------------------------------
-    # Empty pages do not produce chunks.
-    # --------------------------------------------------------
-
     words = page.text.split()
 
     if not words:
@@ -70,22 +61,23 @@ def chunk_page(
 
     chunks: list[DocumentChunk] = []
 
-    # The next chunk starts after this many new words.
     step = chunk_size - overlap
 
     chunk_index = 0
     start = 0
 
     while start < len(words):
-        # Select the words belonging to this chunk.
         chunk_words = words[start : start + chunk_size]
 
-        # Convert words back into readable text.
         chunk_text = " ".join(chunk_words)
 
         chunks.append(
             DocumentChunk(
-                chunk_id=f"{document_id}-chunk-{chunk_index}",
+                # Temporary ID.
+                #
+                # chunk_pages() will assign the final globally
+                # unique ID after combining all pages.
+                chunk_id="",
                 document_id=document_id,
                 text=chunk_text,
                 source=page.source,
@@ -94,7 +86,6 @@ def chunk_page(
             )
         )
 
-        # Move forward while preserving the overlap.
         start += step
         chunk_index += 1
 
@@ -108,28 +99,14 @@ def chunk_pages(
     overlap: int = 50,
 ) -> list[DocumentChunk]:
     """
-    Chunk all pages belonging to a document.
+    Chunk all pages and assign globally unique IDs.
 
-    Args:
-        pages:
-            Cleaned document pages.
-
-        document_id:
-            Unique identifier for the document.
-
-        chunk_size:
-            Maximum words per chunk.
-
-        overlap:
-            Number of overlapping words.
-
-    Returns:
-        A flat list of DocumentChunk objects.
+    Global indexing is important because chunk IDs must be
+    unique across the entire document.
     """
 
     chunks: list[DocumentChunk] = []
 
-    # Process every page independently.
     for page in pages:
         page_chunks = chunk_page(
             page=page,
@@ -140,9 +117,21 @@ def chunk_pages(
 
         chunks.extend(page_chunks)
 
-    # Re-index chunks globally so chunk_index represents their
-    # position in the complete document.
-    for index, chunk in enumerate(chunks):
-        chunk.chunk_index = index
+    # --------------------------------------------------------
+    # Assign global chunk positions and IDs.
+    #
+    # Example:
+    #
+    # document-hash-chunk-0
+    # document-hash-chunk-1
+    # document-hash-chunk-2
+    #
+    # regardless of which page they came from.
+    # --------------------------------------------------------
+
+    for global_index, chunk in enumerate(chunks):
+        chunk.chunk_index = global_index
+
+        chunk.chunk_id = f"{document_id}-chunk-{global_index}"
 
     return chunks

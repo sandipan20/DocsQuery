@@ -150,3 +150,35 @@ def test_chunk_pages_preserves_metadata():
     assert chunks[1].page_number == 2
 
     assert all(chunk.document_id == "doc-123" for chunk in chunks)
+
+
+def test_chunk_ids_are_globally_unique():
+    """
+    Chunks from different pages must receive unique IDs.
+    """
+
+    pages = [
+        DocumentPage(
+            page_number=1,
+            text="page one content",
+            source="test.pdf",
+        ),
+        DocumentPage(
+            page_number=2,
+            text="page two content",
+            source="test.pdf",
+        ),
+    ]
+
+    chunks = chunk_pages(
+        pages=pages,
+        document_id="doc-123",
+        chunk_size=10,
+        overlap=2,
+    )
+
+    assert chunks[0].chunk_id == ("doc-123-chunk-0")
+
+    assert chunks[1].chunk_id == ("doc-123-chunk-1")
+
+    assert len({chunk.chunk_id for chunk in chunks}) == len(chunks)
