@@ -92,3 +92,12 @@ data/index/
 data/evaluation/retrieval_results.json
 # Generated retrieval diagnostics
 data/evaluation/retrieval_diagnostics.json
+
+# Generated evaluation output
+data/evaluation/retrieval_results.json
+data/evaluation/retrieval_diagnostics.json
+
+# The official retrieval baseline is intentionally tracked.
+
+# Generated end-to-end RAG evaluation results
+data/evaluation/rag_results.json

@@ -8,6 +8,8 @@ These tests use a deterministic fake retriever so no external
 services such as Qdrant or an embedding model are required.
 """
 
+from builtins import ValueError
+
 import pytest
 
 from app.evaluation.evaluator import RetrievalEvaluator

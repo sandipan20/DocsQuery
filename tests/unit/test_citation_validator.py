@@ -188,3 +188,37 @@ def test_extract_citations_preserves_order(
         "C2",
         "C1",
     ]
+
+
+def test_full_citation_coverage(
+    validator,
+):
+    """
+    Every sentence contains a citation.
+    """
+
+    answer = "Python is a language. [C1] It uses indentation. [C2]"
+
+    assert validator.citation_coverage(answer) == 1.0
+
+
+def test_partial_citation_coverage(
+    validator,
+):
+    """
+    Only half of the sentences contain citations.
+    """
+
+    answer = "Python is a language. [C1] It was released in 1991. "
+
+    assert validator.citation_coverage(answer) == 0.5
+
+
+def test_empty_answer_has_zero_coverage(
+    validator,
+):
+    """
+    An empty answer has no citation coverage.
+    """
+
+    assert validator.citation_coverage("") == 0.0

@@ -18,6 +18,7 @@ class EvaluationExample(BaseModel):
     - the user query
     - the type/category of the query
     - one or more ground-truth relevant chunks
+    - an optional reference answer for answer-level evaluation
     """
 
     # Unique identifier for this evaluation example.
@@ -43,6 +44,11 @@ class EvaluationExample(BaseModel):
     relevant_chunk_ids: list[str] = Field(
         min_length=1,
     )
+
+    # Optional reference answer used for answer-level evaluation.
+    #
+    # Retrieval-only examples can omit this field.
+    reference_answer: str | None = None
 
 
 class EvaluationDataset(BaseModel):
