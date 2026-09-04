@@ -2,167 +2,77 @@
 # DocsQuery - Python Project Configuration
 # ============================================================
 
-
-# ------------------------------------------------------------
-# Build System
-# ------------------------------------------------------------
-# Setuptools is responsible for building/installing DocsQuery.
-# ------------------------------------------------------------
-
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
-
-# ------------------------------------------------------------
-# Project Metadata
-# ------------------------------------------------------------
-
 [project]
 name = "docsquery"
 version = "0.1.0"
-
-description = "Production-oriented domain-specific RAG application"
-
+description = "Production-oriented domain-specific RAG system"
+readme = "README.md"
 requires-python = ">=3.12,<3.13"
 
-
-# ------------------------------------------------------------
-# Runtime Dependencies
-# ------------------------------------------------------------
-# These packages are required when DocsQuery is running.
-# ------------------------------------------------------------
-
-dependencies = [
-    # AI
-    "google-genai>=1.0,<2.0",
-    
-    # Web API
-    "fastapi",
-    "uvicorn[standard]",
-
-    # Configuration and validation
-    "pydantic",
-    "pydantic-settings",
-    "python-dotenv",
-
-    # Vector database
-    "qdrant-client",
-
-    # Embeddings and cross-encoder reranking
-    "sentence-transformers",
-
-    # Keyword retrieval
-    "rank-bm25",
-
-    # PDF document extraction
-    "pypdf",
-    
-    "fastapi>=0.115,<1.0",
-    "uvicorn[standard]>=0.34,<1.0",
-    "sentence-transformers>=5.0,<6.0",
+authors = [
+    { name = "Sandipan" },
 ]
 
-
-# ------------------------------------------------------------
-# Development Dependencies
-# ------------------------------------------------------------
-# These are needed during development/testing but are not
-# required by the production application itself.
-# ------------------------------------------------------------
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.30,<1.0",
+    "pydantic>=2.0,<3.0",
+    "pydantic-settings>=2.0,<3.0",
+    "python-dotenv>=1.0,<2.0",
+    "pyyaml>=6.0,<7.0",
+    "pypdf>=5.0,<7.0",
+    "rank-bm25>=0.2,<1.0",
+    "sentence-transformers>=3.0,<6.0",
+    "transformers>=4.0,<6.0",
+    "torch>=2.0,<3.0",
+    "qdrant-client>=1.12,<2.0",
+    "google-genai>=1.0,<2.0",
+    "httpx>=0.27,<1.0",
+]
 
 [project.optional-dependencies]
 dev = [
-    # Testing
-    "pytest",
-    "pytest-cov",
-
-    # Code quality
-    "ruff",
-
-    "httpx2>=0.1",
+    "pytest>=8.0,<10.0",
+    "pytest-cov>=5.0,<8.0",
+    "ruff>=0.8,<1.0",
 ]
 
-
-# ------------------------------------------------------------
-# Setuptools Package Discovery
-# ------------------------------------------------------------
-# IMPORTANT:
-#
-# Our repository contains directories such as:
-#
-#     app/
-#     data/
-#     configs/
-#     notebooks/
-#
-# Setuptools may interpret multiple top-level directories as
-# Python packages when using automatic discovery.
-#
-# We only want the actual Python application package:
-#
-#     app/
-#
-# Therefore, explicitly tell setuptools to include packages
-# beginning with "app".
-# ------------------------------------------------------------
-
 [tool.setuptools.packages.find]
-include = ["app*"]
-
-
-# ------------------------------------------------------------
-# Pytest Configuration
-# ------------------------------------------------------------
+include = ["app*", "scripts*"]
 
 [tool.pytest.ini_options]
-
-# Search for tests inside the tests/ directory.
 testpaths = ["tests"]
-
-# Allow tests to import the application using:
-#
-#     from app.config.settings import get_settings
-#
-pythonpath = ["."]
-
-# Show additional information about skipped/failed tests.
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
 addopts = "-ra"
 
-
-# ------------------------------------------------------------
-# Ruff Configuration
-# ------------------------------------------------------------
-
 [tool.ruff]
-
-# Maximum line length.
+target-version = "py312"
 line-length = 88
 
-# Target Python version.
-target-version = "py312"
-
-
-# ------------------------------------------------------------
-# Ruff Linting Rules
-# ------------------------------------------------------------
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    "build",
+    "dist",
+]
 
 [tool.ruff.lint]
-
-# E = pycodestyle errors
-# F = pyflakes errors
-# I = import sorting
-select = ["E", "F", "I"]
-
-
-# ------------------------------------------------------------
-# Ruff Formatting
-# ------------------------------------------------------------
+select = [
+    "E",
+    "F",
+    "I",
+]
+ignore = []
 
 [tool.ruff.format]
-
-# Use double quotes for Python strings.
 quote-style = "double"
-
-# Use spaces for indentation.
 indent-style = "space"

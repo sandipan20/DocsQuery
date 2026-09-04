@@ -1,200 +1,337 @@
 """
-DocsQuery - Groundedness Evaluation
+Groundedness evaluation for generated RAG answers.
 
-Uses a Natural Language Inference (NLI) model to estimate
-whether generated answer sentences are supported by retrieved
-evidence.
+The evaluator checks whether generated answer sentences are supported
+by the retrieval contexts cited by the answer.
 
-This evaluator is intentionally part of the evaluation layer,
-not the production request path.
+Production design:
 
-Production RAG:
-    Retrieval → Reranker → Gemini
-
-Evaluation:
-    Answer + Evidence → NLI model → Groundedness score
+    answer sentence
+        ↓
+    cited context(s)
+        ↓
+    focused evidence units
+        ↓
+    NLI entailment scoring
+        ↓
+    best supporting evidence
+        ↓
+    sentence groundedness
+        ↓
+    overall groundedness
 """
 
-from functools import lru_cache
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
 
 from transformers import pipeline
 
+from app.generation.context_builder import CitationContext
+
+
+@dataclass(frozen=True)
+class GroundednessResult:
+    """
+    Result returned by groundedness evaluation.
+
+    The object supports comparison with floats so existing tests and
+    callers that previously expected a numeric score continue to work.
+    """
+
+    score: float
+    grounded: bool
+
+    def __eq__(self, other: object) -> bool:
+        """Allow comparison with either another result or a numeric score."""
+
+        if isinstance(other, GroundednessResult):
+            return self.score == other.score and self.grounded == other.grounded
+
+        if isinstance(other, (int, float)):
+            return self.score == float(other)
+
+        return NotImplemented
+
 
 class GroundednessEvaluator:
-    """
-    Evaluates whether answer statements are supported by evidence.
-    """
+    """Evaluate whether generated answer claims are supported by context."""
 
-    # Keep evidence windows reasonably small.
-    #
-    # The actual tokenizer limit is enforced by the NLI pipeline
-    # with truncation=True and max_length=512.
-    MAX_EVIDENCE_WORDS = 300
+    # Minimum entailment probability required for a sentence to be
+    # considered grounded.
+    ENTAILMENT_THRESHOLD = 0.50
 
-    def __init__(
-        self,
-        model_name: str = ("cross-encoder/nli-MiniLM2-L6-H768"),
-    ):
-        """
-        Initialize the NLI pipeline.
+    # Keep evidence units small enough that the NLI model focuses on
+    # the actual supporting statement rather than unrelated text.
+    EVIDENCE_WINDOW_WORDS = 80
 
-        The model is loaded when this evaluator is constructed.
-        """
+    # NLI model used for entailment / contradiction / neutral scoring.
+    MODEL_NAME = "cross-encoder/nli-MiniLM2-L6-H768"
 
-        self.model_name = model_name
+    def __init__(self) -> None:
+        """Load the NLI model."""
 
         self.pipeline = pipeline(
             "text-classification",
-            model=model_name,
+            model=self.MODEL_NAME,
         )
 
     def evaluate(
         self,
         answer: str,
-        evidence: str,
-    ) -> float:
+        contexts: list[CitationContext],
+    ) -> GroundednessResult:
         """
-        Estimate groundedness.
+        Evaluate whether the answer is supported by retrieved context.
 
-        Each answer sentence is compared against manageable
-        evidence windows.
+        Cited sentences are evaluated only against their cited contexts.
 
-        A sentence is considered grounded when at least one
-        evidence window is classified as entailment.
+        Uncited sentences use all available contexts as a fallback.
 
-        Args:
-            answer:
-                Generated answer.
-
-            evidence:
-                Retrieved evidence.
-
-        Returns:
-            Fraction of answer sentences judged to be entailed
-            by the evidence.
+        Each retrieval chunk is split into focused evidence units before
+        NLI evaluation so unrelated material does not confuse the model.
         """
 
         if not answer.strip():
-            return 0.0
+            return GroundednessResult(
+                score=0.0,
+                grounded=False,
+            )
 
-        if not evidence.strip():
-            return 0.0
+        if not contexts:
+            return GroundednessResult(
+                score=0.0,
+                grounded=False,
+            )
 
         sentences = self._split_sentences(answer)
 
         if not sentences:
-            return 0.0
-
-        evidence_windows = self._split_evidence(evidence)
-
-        if not evidence_windows:
-            return 0.0
-
-        supported = 0
-
-        for sentence in sentences:
-            if self._sentence_is_supported(
-                sentence=sentence,
-                evidence_windows=evidence_windows,
-            ):
-                supported += 1
-
-        return supported / len(sentences)
-
-    def _sentence_is_supported(
-        self,
-        sentence: str,
-        evidence_windows: list[str],
-    ) -> bool:
-        """
-        Determine whether an answer sentence is supported by
-        at least one evidence window.
-
-        Evidence is the NLI premise and the answer sentence is
-        the NLI hypothesis.
-        """
-
-        for evidence_window in evidence_windows:
-            result = self.pipeline(
-                {
-                    "text": evidence_window,
-                    "text_pair": sentence,
-                },
-                truncation=True,
-                max_length=512,
+            return GroundednessResult(
+                score=0.0,
+                grounded=False,
             )
 
-            if not result:
+        context_map = {context.citation_id: context for context in contexts}
+
+        sentence_scores: list[float] = []
+
+        for sentence in sentences:
+            citations = self._extract_citations(sentence)
+
+            hypothesis = self._remove_citations(sentence).strip()
+
+            if not hypothesis:
                 continue
 
-            # Transformers may return either a single prediction
-            # dictionary or a list containing predictions.
-            if isinstance(result, list):
-                prediction = result[0]
+            if citations:
+                candidate_contexts = [
+                    context_map[citation]
+                    for citation in citations
+                    if citation in context_map
+                ]
             else:
-                prediction = result
+                candidate_contexts = contexts
 
-            label = str(prediction["label"]).lower()
+            if not candidate_contexts:
+                sentence_scores.append(0.0)
+                continue
 
-            if "entail" in label:
-                return True
+            best_score = self._best_entailment_score(
+                hypothesis=hypothesis,
+                contexts=candidate_contexts,
+            )
 
-        return False
+            sentence_scores.append(best_score)
 
-    @classmethod
+        if not sentence_scores:
+            return GroundednessResult(
+                score=0.0,
+                grounded=False,
+            )
+
+        score = sum(sentence_scores) / len(sentence_scores)
+
+        return GroundednessResult(
+            score=score,
+            grounded=score >= self.ENTAILMENT_THRESHOLD,
+        )
+
+    def _best_entailment_score(
+        self,
+        hypothesis: str,
+        contexts: list[CitationContext],
+    ) -> float:
+        """
+        Find the strongest entailment score across all focused evidence.
+
+        We use the maximum entailment score instead of averaging every
+        evidence unit because a retrieval chunk may contain unrelated text.
+        """
+
+        best_score = 0.0
+
+        for context in contexts:
+            evidence_units = self._split_evidence(context.result.text)
+
+            for evidence in evidence_units:
+                raw_result = self.pipeline(
+                    {
+                        "text": evidence,
+                        "text_pair": hypothesis,
+                    },
+                    truncation=True,
+                    max_length=512,
+                )
+
+                result = self._normalize_pipeline_result(raw_result)
+
+                label = result["label"].lower()
+                score = float(result["score"])
+
+                if label == "entailment":
+                    best_score = max(best_score, score)
+
+        return best_score
+
+    @staticmethod
+    def _normalize_pipeline_result(
+        result: object,
+    ) -> dict[str, object]:
+        """
+        Normalize Hugging Face pipeline output.
+
+        Depending on the pipeline invocation/model version, the result may
+        be either:
+
+            {"label": "...", "score": ...}
+
+        or:
+
+            [{"label": "...", "score": ...}]
+        """
+
+        if isinstance(result, list):
+            if not result:
+                return {
+                    "label": "neutral",
+                    "score": 0.0,
+                }
+
+            first = result[0]
+
+            if not isinstance(first, dict):
+                raise TypeError("Unexpected NLI pipeline result item.")
+
+            return first
+
+        if isinstance(result, dict):
+            return result
+
+        raise TypeError(f"Unexpected NLI pipeline result type: {type(result).__name__}")
+
     def _split_evidence(
-        cls,
+        self,
         evidence: str,
     ) -> list[str]:
         """
-        Split large evidence into manageable word-based windows.
-
-        Word-based windows keep the amount of evidence bounded,
-        while the tokenizer-level truncation in the NLI call
-        provides the final protection against model limits.
+        Split a retrieval chunk into focused evidence units.
         """
 
-        words = evidence.split()
+        text = evidence.strip()
 
-        if not words:
+        if not text:
             return []
 
-        return [
-            " ".join(words[start : start + cls.MAX_EVIDENCE_WORDS])
+        # Split on paragraph/newline boundaries first.
+        pieces = [piece.strip() for piece in re.split(r"\n+", text) if piece.strip()]
+
+        units: list[str] = []
+
+        for piece in pieces:
+            sentences = self._split_sentences(piece)
+
+            if sentences:
+                units.extend(sentences)
+            else:
+                units.append(piece)
+
+        bounded_units: list[str] = []
+
+        for unit in units:
+            words = unit.split()
+
+            if len(words) <= self.EVIDENCE_WINDOW_WORDS:
+                bounded_units.append(unit)
+                continue
+
             for start in range(
                 0,
                 len(words),
-                cls.MAX_EVIDENCE_WORDS,
-            )
-        ]
+                self.EVIDENCE_WINDOW_WORDS,
+            ):
+                window = words[start : start + self.EVIDENCE_WINDOW_WORDS]
+
+                bounded_units.append(" ".join(window))
+
+        return bounded_units
 
     @staticmethod
-    def _split_sentences(
-        text: str,
+    def _split_sentences(text: str) -> list[str]:
+        """
+        Split text into sentences while keeping citations attached.
+
+        Example:
+
+            Python is a language. [C1] Git is version control. [C2]
+
+        becomes:
+
+            [
+                "Python is a language. [C1]",
+                "Git is version control. [C2]",
+            ]
+        """
+
+        pattern = re.compile(
+            r".*?[.!?](?:\s*\[C\d+\])*"
+            r"(?=\s+|$)"
+        )
+
+        sentences = pattern.findall(text)
+
+        consumed = "".join(sentences)
+
+        remaining = text[len(consumed) :].strip()
+
+        if remaining:
+            sentences.append(remaining)
+
+        return [sentence.strip() for sentence in sentences if sentence.strip()]
+
+    @staticmethod
+    def _extract_citations(
+        sentence: str,
     ) -> list[str]:
-        """
-        Perform simple sentence splitting.
-        """
+        """Extract unique citation IDs such as C1, C2, and C3."""
 
-        import re
+        citations = re.findall(
+            r"\[(C\d+)\]",
+            sentence,
+        )
 
-        return [
-            sentence.strip()
-            for sentence in re.split(
-                r"(?<=[.!?])\s+",
-                text.strip(),
-            )
-            if sentence.strip()
-        ]
+        # Preserve order while removing duplicates.
+        return list(dict.fromkeys(citations))
 
+    @staticmethod
+    def _remove_citations(
+        sentence: str,
+    ) -> str:
+        """Remove citation markers before sending text to NLI."""
 
-@lru_cache
-def get_groundedness_evaluator() -> GroundednessEvaluator:
-    """
-    Return a cached evaluator.
-
-    This prevents multiple NLI model instances from being
-    created within the same evaluation process.
-    """
-
-    return GroundednessEvaluator()
+        return re.sub(
+            r"\s*\[C\d+\]",
+            "",
+            sentence,
+        )

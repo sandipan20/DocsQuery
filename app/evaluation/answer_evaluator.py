@@ -8,29 +8,19 @@ This evaluator belongs to the evaluation layer and is not
 part of the normal production query path.
 """
 
-from app.evaluation.answer_metrics import (
-    AnswerMetrics,
-)
-from app.evaluation.answer_models import (
-    AnswerEvaluationResult,
-)
-from app.evaluation.groundedness import (
-    GroundednessEvaluator,
-)
-from app.generation.context_builder import (
-    CitationContext,
-)
+from app.evaluation.answer_metrics import AnswerMetrics
+from app.evaluation.answer_models import AnswerEvaluationResult
+from app.evaluation.groundedness import GroundednessEvaluator
+from app.generation.context_builder import CitationContext
 
 
 class AnswerEvaluator:
-    """
-    Evaluates generated RAG answers.
-    """
+    """Evaluates generated RAG answers."""
 
     def __init__(
         self,
         answer_metrics: AnswerMetrics | None = None,
-        groundedness_evaluator: (GroundednessEvaluator | None) = None,
+        groundedness_evaluator: GroundednessEvaluator | None = None,
     ):
         """
         Initialize answer evaluation dependencies.
@@ -68,7 +58,7 @@ class AnswerEvaluator:
                 Generated answer.
 
             contexts:
-                Retrieved evidence.
+                Retrieved citation-aware evidence.
 
         Returns:
             Structured answer evaluation result.
@@ -93,26 +83,37 @@ class AnswerEvaluator:
         # Groundedness
         # ----------------------------------------------------
         #
-        # Default to zero so the value is always defined,
-        # even when the expensive NLI evaluator is disabled.
+        # Default values are used when the optional NLI evaluator
+        # is not configured.
 
         groundedness_score = 0.0
         grounded = False
 
         if self.groundedness_evaluator is not None and contexts:
-            # Combine all retrieved evidence into the premise
-            # used by the NLI evaluator.
-            evidence = "\n\n".join(context.result.text for context in contexts)
-
-            groundedness_score = self.groundedness_evaluator.evaluate(
+            groundedness_result = self.groundedness_evaluator.evaluate(
                 answer=answer,
-                evidence=evidence,
+                contexts=contexts,
             )
 
-            # This boolean is only a convenient classification.
-            # The continuous score is preserved because it contains
-            # more information than True/False.
-            grounded = groundedness_score >= 0.5
+            # The production GroundednessEvaluator returns:
+            #
+            #     GroundednessResult(
+            #         score=<float>,
+            #         grounded=<bool>,
+            #     )
+            #
+            # Some existing lightweight test doubles return a plain
+            # float. Support both forms so tests remain simple.
+
+            if hasattr(groundedness_result, "score"):
+                groundedness_score = float(groundedness_result.score)
+            else:
+                groundedness_score = float(groundedness_result)
+
+            if hasattr(groundedness_result, "grounded"):
+                grounded = bool(groundedness_result.grounded)
+            else:
+                grounded = groundedness_score >= 0.5
 
         return AnswerEvaluationResult(
             example_id=example_id,

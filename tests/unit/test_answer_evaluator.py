@@ -13,10 +13,7 @@ from app.retrieval.models import RetrievalResult
 
 class FakeGroundednessEvaluator:
     """
-    Fake groundedness evaluator used for unit tests.
-
-    It returns a predictable score without loading the real
-    NLI model.
+    Test double for the NLI-based groundedness evaluator.
     """
 
     def __init__(self, score: float):
@@ -25,12 +22,13 @@ class FakeGroundednessEvaluator:
     def evaluate(
         self,
         answer: str,
-        evidence: str,
+        contexts,
     ) -> float:
         """
-        Return the predefined groundedness score.
-        """
+        Return the configured score without running an NLI model.
 
+        The signature matches GroundednessEvaluator.evaluate().
+        """
         return self.score
 
 

@@ -1,0 +1,79 @@
+# ============================================================
+# DocsQuery - Evaluation Quality Gate Configuration
+# ============================================================
+#
+# This file defines the rules used to decide whether a new
+# version of DocsQuery is still meeting our quality standards.
+#
+# There are two types of checks:
+#
+# 1. Retrieval regression checks
+#    Compare the current retrieval metrics against the
+#    accepted baseline.
+#
+# 2. Answer quality checks
+#    Require the current RAG system to stay above absolute
+#    minimum quality thresholds.
+#
+# IMPORTANT:
+# These are initial engineering thresholds.
+# We will revisit them after collecting enough evaluation data.
+# ============================================================
+
+
+# ------------------------------------------------------------
+# Retrieval Quality
+# ------------------------------------------------------------
+
+retrieval:
+
+  # Maximum allowed drop in Mean Reciprocal Rank (MRR).
+  #
+  # Example:
+  #
+  # Baseline MRR = 0.85
+  # Current MRR  = 0.81
+  #
+  # Drop = 0.04
+  #
+  # 0.04 is acceptable because it is below 0.05.
+  max_mrr_drop: 0.05
+
+  # Maximum allowed drop in nDCG@5.
+  max_ndcg_at_5_drop: 0.05
+
+  # Maximum allowed drop in Recall@5.
+  max_recall_at_5_drop: 0.05
+
+
+# ------------------------------------------------------------
+# Answer Quality
+# ------------------------------------------------------------
+
+answer:
+
+  # Percentage of answers whose citation IDs are valid.
+  #
+  # 0.95 means at least 95% of evaluated answers must contain
+  # only citations that actually exist in the retrieved context.
+  min_citation_validity: 0.95
+
+  # Percentage of answer sentences that contain citations.
+  #
+  # 0.90 means at least 90% citation coverage is required.
+  min_citation_coverage: 0.90
+
+  # Average semantic groundedness score.
+  #
+  # This currently comes from the NLI-based evaluator.
+  #
+  # We will validate this threshold against a larger dataset
+  # before treating it as a final scientific standard.
+  min_groundedness: 0.80
+
+  # Minimum semantic similarity between generated answers and
+  # reference answers.
+  #
+  # This is currently an embedding-similarity signal rather
+  # than a definitive correctness metric.
+  min_correctness: 0.70
