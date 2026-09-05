@@ -101,3 +101,4 @@ data/evaluation/retrieval_diagnostics.json
 
 # Generated end-to-end RAG evaluation results
 data/evaluation/rag_results.json
+

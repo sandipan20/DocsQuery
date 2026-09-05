@@ -1,0 +1,140 @@
+{
+  "answer_results": {
+    "examples": [
+      {
+        "answer": "The `git init` command is used to turn a directory into a new Git repository so that you can begin version controlling it [C3]. When you run this command, it performs the following actions:\n\n*   **Creates a repository structure:** It initializes a Git repository, which includes creating the `objects` directory (with `pack` and `info` subdirectories), the `refs` directory, and a `HEAD` file [C1], [C2].\n*   **Sets up the branch:** It creates a default branch, which is typically named \"master\" [C4], [C5]. The `HEAD` reference points to this unborn branch [C1].\n*   **Configures defaults:** It creates a `config` file for project-specific configuration options [C2].\n\nDepending on the version of Git, you may see additional content, such as an index file or a `hooks` directory [C2].",
+        "citation_coverage": 1.0,
+        "citation_valid": true,
+        "correctness_score": null,
+        "example_id": "q001",
+        "grounded": true,
+        "groundedness_score": 0.7108785510063171,
+        "query": "What does git init do?",
+        "retrieved": true
+      },
+      {
+        "answer": "To create a new Git branch, you can use the following methods:\n\n*   **Create a branch without switching:** Use the command `git branch <branchname>` [C2].\n*   **Create a branch and switch to it simultaneously:**\n    *   Use `git checkout -b <newbranchname>` [C1].\n    *   For Git version 2.23 or later, you can use `git switch -c <new-branch-name>` or `git switch --create <new-branch-name>` [C1], [C5].",
+        "citation_coverage": 1.0,
+        "citation_valid": true,
+        "correctness_score": null,
+        "example_id": "q002",
+        "grounded": true,
+        "groundedness_score": 0.8926589041948318,
+        "query": "How do I create a new Git branch?",
+        "retrieved": true
+      },
+      {
+        "answer": "To merge a branch, you generally perform a merge operation into your current branch [C1], [C5]. If the merge results in conflicts, you must manually fix the files, add them, and commit the result to complete the merge [C5].\n\nSpecific steps for merging include:\n*   **Fetching and Merging:** If merging from a remote repository, you may need to add the remote, fetch from it, and then run `git merge <branch-name>` [C5].\n*   **Resolving Conflicts:** If an automatic merge fails due to conflicts, you must edit the conflicted files, use `git add` to mark them as resolved, and then run `git commit` to finalize the merge [C5].\n\nThe provided documents do not explicitly state the exact command to initiate a standard local merge (e.g., `git merge <branch>`), though they confirm that the `git merge` command is used to integrate branches [C5].",
+        "citation_coverage": 1.0,
+        "citation_valid": true,
+        "correctness_score": null,
+        "example_id": "q003",
+        "grounded": true,
+        "groundedness_score": 0.523676186800003,
+        "query": "How do I merge a branch?",
+        "retrieved": true
+      },
+      {
+        "answer": "Git rebase is one of two primary ways to integrate changes from one branch into another [C1]. It is essentially an automated cherry-pick that determines a series of commits and reapplies them one by one in the same order elsewhere [C4].\n\nWhen you have work in a topic branch that you want to integrate, you can run the rebase command to rebuild those changes on top of your current branch (such as master) [C5]. This process can help maintain a mostly linear project history [C5]. Additionally, the `git rebase` command can be used with the `--onto` flag to rebase a specific portion of history [C2].",
+        "citation_coverage": 1.0,
+        "citation_valid": true,
+        "correctness_score": null,
+        "example_id": "q004",
+        "grounded": true,
+        "groundedness_score": 0.5870533982912699,
+        "query": "What is Git rebase?",
+        "retrieved": true
+      }
+    ],
+    "summary": {
+      "average_citation_coverage": 1.0,
+      "average_correctness": null,
+      "average_groundedness": 0.6785667600731055,
+      "citation_validity_rate": 1.0,
+      "dataset_version": "1.1.0",
+      "grounded_answer_rate": 1.0,
+      "num_examples": 4,
+      "retrieval_success_rate": 1.0
+    }
+  },
+  "metadata": {
+    "corpus_file": null,
+    "corpus_sha256": null,
+    "created_at_utc": "2026-09-05T14:18:09.396095+00:00",
+    "dataset_version": "1.1.0",
+    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+    "generation_model": "gemini-3.1-flash-lite",
+    "git_commit": "ee7ef50e163518c2eb12a8cf9e1e811ba38b4e11",
+    "groundedness_model": "cross-encoder/nli-MiniLM2-L6-H768",
+    "reranker_model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+    "rrf_k": 60,
+    "run_id": "20260905T141809Z"
+  },
+  "retrieval_results": {
+    "strategies": [
+      {
+        "metrics": {
+          "mrr": 0.0,
+          "ndcg_at_5": 0.0,
+          "precision_at_1": 0.0,
+          "precision_at_3": 0.0,
+          "precision_at_5": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0
+        },
+        "num_examples": 4,
+        "strategy": "BM25"
+      },
+      {
+        "metrics": {
+          "mrr": 0.0625,
+          "ndcg_at_5": 0.10766913951834826,
+          "precision_at_1": 0.0,
+          "precision_at_3": 0.0,
+          "precision_at_5": 0.05,
+          "recall_at_1": 0.0,
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.25
+        },
+        "num_examples": 4,
+        "strategy": "Vector"
+      },
+      {
+        "metrics": {
+          "mrr": 0.0,
+          "ndcg_at_5": 0.0,
+          "precision_at_1": 0.0,
+          "precision_at_3": 0.0,
+          "precision_at_5": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_3": 0.0,
+          "recall_at_5": 0.0
+        },
+        "num_examples": 4,
+        "strategy": "Hybrid RRF"
+      },
+      {
+        "metrics": {
+          "mrr": 0.08333333333333333,
+          "ndcg_at_5": 0.125,
+          "precision_at_1": 0.0,
+          "precision_at_3": 0.08333333333333333,
+          "precision_at_5": 0.05,
+          "recall_at_1": 0.0,
+          "recall_at_3": 0.25,
+          "recall_at_5": 0.25
+        },
+        "num_examples": 4,
+        "strategy": "Hybrid RRF + Reranker"
+      }
+    ]
+  },
+  "summary": {
+    "dataset_version": "1.1.0",
+    "evaluation_completed": true,
+    "rag_evaluation_completed": true,
+    "retrieval_evaluation_completed": true,
+    "retrieval_examples": 4
+  }
+}

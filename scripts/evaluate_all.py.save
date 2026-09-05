@@ -1,0 +1,275 @@
+"""
+DocsQuery - Combined Reproducible Evaluation Runner
+
+This script orchestrates the two existing, tested evaluation pipelines:
+
+1. Retrieval benchmark
+2. End-to-end RAG benchmark
+
+It then combines their generated JSON results with reproducibility
+metadata into:
+
+    data/evaluation/evaluation_run.json
+
+Important:
+- We intentionally reuse the existing evaluation CLIs.
+
+- We do not duplicate their internal retrieval/RAG construction logic.
+- The combined artifact is ignored by Git.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+from app.config.settings import get_settings
+from app.evaluation.dataset import load_evaluation_dataset
+from app.evaluation.run_artifact import (
+    EvaluationRunArtifact,
+    EvaluationRunMetadata,
+    get_git_commit,
+    make_run_id,
+    save_evaluation_run,
+    sha256_file,
+)
+from app.evaluation.serialization import to_serializable
+
+
+DEFAULT_DATASET = Path("data/evaluation/retrieval_dataset.json")
+DEFAULT_OUTPUT = Path("data/evaluation/evaluation_run.json")
+
+RETRIEVAL_RESULTS = Path("data/evaluation/retrieval_results.json")
+RAG_RESULTS = Path("data/evaluation/rag_results.json")
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+
+    parser = argparse.ArgumentParser(
+        description="Run the complete DocsQuery evaluation pipeline.",
+    )
+
+    parser.add_argument(
+        "--dataset",
+        type=Path,
+        default=DEFAULT_DATASET,
+        help="Path to the evaluation dataset.",
+    )
+
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_OUTPUT,
+        help="Path for the combined evaluation artifact.",
+    )
+
+    parser.add_argument(
+        "--corpus-file",
+        type=Path,
+        default=None,
+        help=(
+            "Optional corpus file used to calculate a SHA-256 fingerprint."
+        ),
+    )
+
+    return parser.parse_args()
+
+
+def run_module(module_name: str) -> None:
+    """
+    Run an existing project script as a Python module.
+
+    Using subprocess here deliberately keeps evaluate_all.py independent
+    from the internal constructors of the individual evaluation systems.
+    """
+
+    print()
+    print("=" * 70)
+    print(f"Running: {module_name}")
+    print("=" * 70)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            module_name,
+        ],
+        check=False,
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"{module_name} failed with exit code {result.returncode}."
+        )
+
+
+def load_json(path: Path) -> dict:
+    """
+    Load a JSON evaluation result.
+
+    Raises:
+        FileNotFoundError:
+            If the expected evaluation output was not generated.
+
+        ValueError:
+            If the JSON file does not contain an object.
+    """
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Expected evaluation output was not created: {path}"
+        )
+
+    with path.open("r", encoding="utf-8") as file:
+        payload = json.load(file)
+
+    if not isinstance(payload, dict):
+        raise ValueError(
+            f"Expected JSON object in {path}, got {type(payload).__name__}."
+        )
+
+    return payload
+
+
+def main() -> None:
+    """Run both evaluation pipelines and create one reproducible artifact."""
+
+    args = parse_args()
+
+    # ------------------------------------------------------------
+    # Load configuration and evaluation dataset.
+    # ------------------------------------------------------------
+
+    settings = get_settings()
+    dataset = load_evaluation_dataset(args.dataset)
+
+    print()
+    print("=" * 70)
+    print("DocsQuery Complete Evaluation")
+    print("=" * 70)
+    print(f"Dataset:  {args.dataset}")
+    print(f"Examples: {len(dataset)}")
+
+    # ------------------------------------------------------------
+    # Run the established retrieval benchmark.
+    #
+    # This script already knows how to construct:
+    #   BM25
+    #   Vector
+    #   Hybrid RRF
+    #   Reranked
+    # ------------------------------------------------------------
+
+    run_module("scripts.evaluate_retrieval")
+
+    # ------------------------------------------------------------
+    # Run the established end-to-end RAG benchmark.
+    #
+    # This script already knows how to construct:
+    #   Retrieval
+    #   Reranking
+    #   Gemini
+    #   Citation validation
+    #   Groundedness
+    #   Correctness
+    # ------------------------------------------------------------
+
+    run_module("scripts.evaluate_rag")
+
+    # ------------------------------------------------------------
+    # Load the machine-readable results produced by both systems.
+    # ------------------------------------------------------------
+
+    retrieval_results = load_json(RETRIEVAL_RESULTS)
+    rag_results = load_json(RAG_RESULTS)
+
+    # ------------------------------------------------------------
+    # Optional corpus fingerprint.
+    #
+    # The hash allows us to determine whether the evaluation corpus
+    # changed between runs.
+    # ------------------------------------------------------------
+
+    corpus_hash = None
+
+    if args.corpus_file is not None:
+        corpus_hash = sha256_file(args.corpus_file)
+
+    # ------------------------------------------------------------
+    # Build reproducibility metadata.
+    # ------------------------------------------------------------
+
+    metadata = EvaluationRunMetadata(
+        run_id=make_run_id(),
+        created_at_utc=datetime.now(timezone.utc).isoformat(),
+        dataset_version=dataset.version,
+        git_commit=get_git_commit(),
+        corpus_file=(
+            str(args.corpus_file)
+            if args.corpus_file is not None
+            else None
+        ),
+        corpus_sha256=corpus_hash,
+        embedding_model=getattr(
+            settings,
+            "embedding_model",
+            None,
+        ),
+        reranker_model=getattr(
+            settings,
+            "reranker_model",
+            None,
+        ),
+        groundedness_model="cross-encoder/nli-MiniLM2-L6-H768",
+        generation_model=getattr(
+            settings,
+            "gemini_model",
+            None,
+        ),
+        rrf_k=60,
+    )
+
+    # ------------------------------------------------------------
+    # Combine everything into one reproducible artifact.
+    # ------------------------------------------------------------
+
+    artifact = EvaluationRunArtifact(
+        metadata=metadata,
+        retrieval_results=to_serializable(retrieval_results),
+        answer_results=to_serializable(rag_results),
+        summary={
+            "dataset_version": dataset.version,
+            "retrieval_examples": len(dataset),
+            "retrieval_evaluation_completed": True,
+            "rag_evaluation_completed": True,
+            "evaluation_completed": True,
+        },
+    )
+
+    save_evaluation_run(
+        artifact,
+        args.output,
+    )
+
+    # ------------------------------------------------------------
+    # Final human-readable summary.
+    # ------------------------------------------------------------
+
+    print()
+    print("=" * 70)
+    print("Evaluation run completed successfully.")
+    print("=" * 70)
+    print(f"Run ID:          {metadata.run_id}")
+    print(f"Dataset version: {metadata.dataset_version}")
+    print(f"Git commit:      {metadata.git_commit}")
+    print(f"Output:          {args.output}")
+    print("=" * 70)
+
+
+if __name__ == "__main__":
+    main()
