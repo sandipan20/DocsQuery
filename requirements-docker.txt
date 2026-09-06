@@ -1,0 +1,11 @@
+# CPU-only PyTorch wheels.
+#
+# DocsQuery currently runs inference on CPU inside the Docker image.
+# Using the CPU index prevents pip from pulling CUDA/NVIDIA packages.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch
+
+# Evaluation/runtime ML stack.
+transformers
+sentence-transformers

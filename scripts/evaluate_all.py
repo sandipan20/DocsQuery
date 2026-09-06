@@ -1,20 +1,13 @@
 """
-DocsQuery - Combined Reproducible Evaluation Runner
+DocsQuery - Unified Reproducible Evaluation Runner
 
-This script orchestrates the two existing, tested evaluation pipelines:
-
-1. Retrieval benchmark
-2. End-to-end RAG benchmark
-
-It then combines their generated JSON results with reproducibility
-metadata into:
+Runs the existing retrieval and end-to-end RAG evaluators in one
+logical execution and combines their outputs into:
 
     data/evaluation/evaluation_run.json
 
-Important:
-- We intentionally reuse the existing evaluation CLIs.
-- We do not duplicate their internal retrieval/RAG construction logic.
-- The combined artifact is ignored by Git.
+The existing evaluators remain responsible for the actual evaluation
+logic. This script is only the orchestration layer.
 """
 
 from __future__ import annotations
@@ -23,11 +16,8 @@ import argparse
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
-from app.config.settings import get_settings
 from app.evaluation.dataset import load_evaluation_dataset
 from app.evaluation.run_artifact import (
     EvaluationRunArtifact,
@@ -40,17 +30,21 @@ from app.evaluation.run_artifact import (
 from app.evaluation.serialization import to_serializable
 
 DEFAULT_DATASET = Path("data/evaluation/retrieval_dataset.json")
+
 DEFAULT_OUTPUT = Path("data/evaluation/evaluation_run.json")
 
-RETRIEVAL_RESULTS = Path("data/evaluation/retrieval_results.json")
-RAG_RESULTS = Path("data/evaluation/rag_results.json")
+RETRIEVAL_OUTPUT = Path("data/evaluation/retrieval_results.json")
+
+RAG_OUTPUT = Path("data/evaluation/rag_results.json")
 
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
 
     parser = argparse.ArgumentParser(
-        description="Run the complete DocsQuery evaluation pipeline.",
+        description=(
+            "Run retrieval and end-to-end RAG evaluation as one reproducible run."
+        )
     )
 
     parser.add_argument(
@@ -71,114 +65,185 @@ def parse_args() -> argparse.Namespace:
         "--corpus-file",
         type=Path,
         default=None,
-        help=("Optional corpus file used to calculate a SHA-256 fingerprint."),
+        help=(
+            "Optional file to fingerprint with SHA-256. "
+            "Useful for recording the evaluated corpus/index."
+        ),
     )
 
     return parser.parse_args()
 
 
+def remove_previous_outputs() -> None:
+    """
+    Remove stale evaluator outputs before starting.
+
+    This is critical: we must never accidentally combine a newly
+    generated retrieval result with an old RAG result.
+    """
+
+    for path in (
+        RETRIEVAL_OUTPUT,
+        RAG_OUTPUT,
+    ):
+        path.unlink(
+            missing_ok=True,
+        )
+
+
 def run_module(module_name: str) -> None:
     """
-    Run an existing project script as a Python module.
+    Run an existing package-style script.
 
-    Using subprocess here deliberately keeps evaluate_all.py independent
-    from the internal constructors of the individual evaluation systems.
+    Using `python -m ...` preserves the project's package execution
+    convention.
     """
 
-    print()
-    print("=" * 70)
-    print(f"Running: {module_name}")
-    print("=" * 70)
-
-    result = subprocess.run(
+    subprocess.run(
         [
             sys.executable,
             "-m",
             module_name,
         ],
-        check=False,
+        check=True,
     )
 
-    if result.returncode != 0:
-        raise RuntimeError(f"{module_name} failed with exit code {result.returncode}.")
+
+def load_json(path: Path) -> dict:
+    """Load a JSON object from disk."""
+
+    return json.loads(
+        path.read_text(
+            encoding="utf-8",
+        )
+    )
 
 
-def load_json(path: Path) -> Any:
-    """
-    Load a JSON evaluation result.
-
-    Evaluation outputs may legitimately be either:
-    - a JSON object/dictionary, or
-    - a JSON array/list.
-
-    We preserve the original structure because the combined
-    evaluation artifact should not alter the underlying results.
-    """
+def require_output(path: Path) -> dict:
+    """Fail clearly if an expected evaluator output was not produced."""
 
     if not path.exists():
-        raise FileNotFoundError(f"Expected evaluation output was not created: {path}")
+        raise RuntimeError(f"Expected evaluation output was not created: {path}")
 
-    with path.open("r", encoding="utf-8") as file:
-        return json.load(file)
+    return load_json(path)
+
+
+def extract_dataset_version(
+    data: dict,
+    *,
+    source_name: str,
+) -> str:
+    """
+    Extract the dataset version from an evaluator result.
+
+    Different evaluator result formats may put this in slightly
+    different locations, so the helper keeps that compatibility logic
+    in one place.
+    """
+
+    # Most current result formats expose dataset_version directly.
+    version = data.get("dataset_version")
+
+    if version:
+        return str(version)
+
+    # Some structured results store the summary under `summary`.
+    summary = data.get("summary")
+
+    if isinstance(summary, dict):
+        version = summary.get("dataset_version")
+
+        if version:
+            return str(version)
+
+    raise RuntimeError(f"Could not find dataset_version in {source_name}.")
 
 
 def main() -> None:
-    """Run both evaluation pipelines and create one reproducible artifact."""
+    """Run the complete reproducible evaluation."""
 
     args = parse_args()
 
     # ------------------------------------------------------------
-    # Load configuration and evaluation dataset.
+    # Validate the dataset before doing expensive work.
     # ------------------------------------------------------------
 
-    settings = get_settings()
-    dataset = load_evaluation_dataset(args.dataset)
+    dataset = load_evaluation_dataset(str(args.dataset))
 
     print()
     print("=" * 70)
-    print("DocsQuery Complete Evaluation")
+    print("DocsQuery Reproducible Evaluation")
     print("=" * 70)
-    print(f"Dataset:  {args.dataset}")
+    print(f"Dataset: {args.dataset}")
+    print(f"Dataset version: {dataset.version}")
     print(f"Examples: {len(dataset.examples)}")
+    print()
 
     # ------------------------------------------------------------
-    # Run the established retrieval benchmark.
+    # Remove results from previous executions.
     #
-    # This script already knows how to construct:
-    #   BM25
-    #   Vector
-    #   Hybrid RRF
-    #   Reranked
+    # This prevents stale-result mixing.
     # ------------------------------------------------------------
 
+    remove_previous_outputs()
+
+    # ------------------------------------------------------------
+    # Run deterministic retrieval evaluation.
+    # ------------------------------------------------------------
+
+    print("Running retrieval evaluation...")
     run_module("scripts.evaluate_retrieval")
 
+    retrieval_results = require_output(RETRIEVAL_OUTPUT)
+
+    retrieval_dataset_version = extract_dataset_version(
+        retrieval_results,
+        source_name=str(RETRIEVAL_OUTPUT),
+    )
+
     # ------------------------------------------------------------
-    # Run the established end-to-end RAG benchmark.
+    # Run end-to-end RAG evaluation.
     #
-    # This script already knows how to construct:
-    #   Retrieval
-    #   Reranking
-    #   Gemini
-    #   Citation validation
-    #   Groundedness
-    #   Correctness
+    # This requires the Gemini API and therefore is not a
+    # lightweight unit-test operation.
     # ------------------------------------------------------------
 
+    print()
+    print("Running end-to-end RAG evaluation...")
     run_module("scripts.evaluate_rag")
 
+    answer_results = require_output(RAG_OUTPUT)
+
+    answer_dataset_version = extract_dataset_version(
+        answer_results,
+        source_name=str(RAG_OUTPUT),
+    )
+
     # ------------------------------------------------------------
-    # Load the machine-readable results produced by both systems.
+    # Dataset-version consistency check.
     # ------------------------------------------------------------
 
-    retrieval_results = load_json(RETRIEVAL_RESULTS)
-    rag_results = load_json(RAG_RESULTS)
+    expected_version = str(dataset.version)
+
+    if retrieval_dataset_version != expected_version:
+        raise RuntimeError(
+            "Retrieval evaluation used a different dataset version: "
+            f"{retrieval_dataset_version} != {expected_version}"
+        )
+
+    if answer_dataset_version != expected_version:
+        raise RuntimeError(
+            "RAG evaluation used a different dataset version: "
+            f"{answer_dataset_version} != {expected_version}"
+        )
+
+    if retrieval_dataset_version != answer_dataset_version:
+        raise RuntimeError(
+            "Retrieval and RAG evaluations used different dataset versions."
+        )
 
     # ------------------------------------------------------------
     # Optional corpus fingerprint.
-    #
-    # The hash allows us to determine whether the evaluation corpus
-    # changed between runs.
     # ------------------------------------------------------------
 
     corpus_hash = None
@@ -187,51 +252,29 @@ def main() -> None:
         corpus_hash = sha256_file(args.corpus_file)
 
     # ------------------------------------------------------------
-    # Build reproducibility metadata.
+    # Construct the single run artifact.
     # ------------------------------------------------------------
 
     metadata = EvaluationRunMetadata(
         run_id=make_run_id(),
-        created_at_utc=datetime.now(timezone.utc).isoformat(),
-        dataset_version=dataset.version,
+        created_at_utc=(
+            __import__("datetime")
+            .datetime.now(__import__("datetime").timezone.utc)
+            .isoformat()
+        ),
+        dataset_version=expected_version,
         git_commit=get_git_commit(),
-        corpus_file=(str(args.corpus_file) if args.corpus_file is not None else None),
         corpus_sha256=corpus_hash,
-        embedding_model=getattr(
-            settings,
-            "embedding_model",
-            None,
-        ),
-        reranker_model=getattr(
-            settings,
-            "reranker_model",
-            None,
-        ),
-        groundedness_model="cross-encoder/nli-MiniLM2-L6-H768",
-        generation_model=getattr(
-            settings,
-            "gemini_model",
-            None,
-        ),
-        rrf_k=60,
     )
-
-    # ------------------------------------------------------------
-    # Combine everything into one reproducible artifact.
-    # ------------------------------------------------------------
 
     artifact = EvaluationRunArtifact(
         metadata=metadata,
-        retrieval_results={
-            "strategies": to_serializable(retrieval_results),
-        },
-        answer_results=to_serializable(rag_results),
+        retrieval_results=to_serializable(retrieval_results),
+        answer_results=to_serializable(answer_results),
         summary={
-            "dataset_version": dataset.version,
-            "retrieval_examples": len(dataset.examples),
-            "retrieval_evaluation_completed": True,
-            "rag_evaluation_completed": True,
             "evaluation_completed": True,
+            "dataset_version": expected_version,
+            "num_examples": len(dataset.examples),
         },
     )
 
@@ -240,18 +283,14 @@ def main() -> None:
         args.output,
     )
 
-    # ------------------------------------------------------------
-    # Final human-readable summary.
-    # ------------------------------------------------------------
-
     print()
     print("=" * 70)
     print("Evaluation run completed successfully.")
     print("=" * 70)
-    print(f"Run ID:          {metadata.run_id}")
-    print(f"Dataset version: {metadata.dataset_version}")
-    print(f"Git commit:      {metadata.git_commit}")
-    print(f"Output:          {args.output}")
+    print(f"Run ID:        {metadata.run_id}")
+    print(f"Dataset:       {metadata.dataset_version}")
+    print(f"Git commit:    {metadata.git_commit}")
+    print(f"Output:        {args.output}")
     print("=" * 70)
 
 

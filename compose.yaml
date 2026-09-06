@@ -1,0 +1,90 @@
+services:
+  # ==========================================================
+  # DocsQuery API
+  # ==========================================================
+  #
+  # This container runs the FastAPI application.
+  #
+  # The application image is disposable. Persistent retrieval
+  # state is mounted from the host instead of being stored only
+  # inside the container.
+  # ==========================================================
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: docsquery-api
+
+    ports:
+      # FastAPI
+      - "8000:8000"
+
+    # Load secrets and other runtime configuration from .env.
+    #
+    # IMPORTANT:
+    # .env is NOT copied into the Docker image.
+    env_file:
+      - .env
+
+    environment:
+      # Inside Docker Compose, "qdrant" resolves to the Qdrant
+      # service. Do NOT use localhost here.
+      QDRANT_URL: http://qdrant:6333
+
+    volumes:
+      # Persist BM25 and other generated index metadata outside
+      # the API container.
+      #
+      # This means recreating the API container does not delete
+      # the local BM25 index.
+      - ./data/index:/app/data/index
+
+    # Start Qdrant before the API container.
+    #
+    # The API's /ready endpoint performs the actual dependency
+    # readiness check, so we don't depend on a Qdrant health
+    # condition here.
+    depends_on:
+      - qdrant
+
+    restart: unless-stopped
+
+  # ==========================================================
+  # Qdrant
+  # ==========================================================
+  #
+  # Qdrant stores the semantic vector index used by DocsQuery.
+  # ==========================================================
+
+  qdrant:
+    image: qdrant/qdrant:v1.18.2
+
+    container_name: docsquery-qdrant
+
+    ports:
+      # Qdrant HTTP API
+      - "6333:6333"
+
+      # Qdrant gRPC API
+      - "6334:6334"
+
+    volumes:
+      # Persistent vector database storage.
+      #
+      # Removing/recreating the container does NOT remove this
+      # data unless the named volume itself is deleted.
+      - qdrant_storage:/qdrant/storage
+
+    restart: unless-stopped
+
+
+# ============================================================
+# Persistent Docker volumes
+# ============================================================
+
+volumes:
+  # Stores Qdrant's persistent database files.
+  qdrant_storage:
+    name: docsquery-qdrant-storage

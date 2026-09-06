@@ -1,9 +1,10 @@
 """
-Models and helpers for reproducible end-to-end evaluation runs.
+DocsQuery - Reproducible Evaluation Run Artifact
 
-An evaluation run records both metadata and evaluation outputs so that
-the quality gate can evaluate one coherent snapshot rather than combining
-results produced by different commands at different times.
+Stores metadata and outputs belonging to one evaluation execution.
+
+The important design goal is that retrieval and answer evaluation
+results can be tied to the same dataset version and Git revision.
 """
 
 from __future__ import annotations
@@ -19,51 +20,43 @@ from pydantic import BaseModel, Field
 
 
 class EvaluationRunMetadata(BaseModel):
-    """Metadata describing exactly what produced an evaluation run."""
+    """Metadata describing one evaluation execution."""
 
     run_id: str
     created_at_utc: str
 
+    # Evaluation dataset version used by this run.
     dataset_version: str
 
+    # Source-code revision, when the project is inside a Git repository.
     git_commit: str | None = None
 
-    corpus_file: str | None = None
+    # Optional fingerprint of a corpus/index file.
     corpus_sha256: str | None = None
-
-    embedding_model: str | None = None
-    reranker_model: str | None = None
-    groundedness_model: str | None = None
-    generation_model: str | None = None
-
-    rrf_k: int | None = None
 
 
 class EvaluationRunArtifact(BaseModel):
     """
-    Complete persisted evaluation result.
+    Complete machine-readable evaluation run.
 
-    Retrieval and answer evaluation results are stored inside the same
-    artifact so the quality gate never mixes results from separate runs.
+    Both retrieval and answer evaluation are stored together so a
+    quality gate can reason about one coherent execution.
     """
 
     metadata: EvaluationRunMetadata
 
+    # Raw output produced by retrieval evaluation.
     retrieval_results: dict[str, Any] = Field(default_factory=dict)
 
+    # Raw output produced by end-to-end RAG evaluation.
     answer_results: dict[str, Any] = Field(default_factory=dict)
 
+    # Small high-level information useful for tooling.
     summary: dict[str, Any] = Field(default_factory=dict)
 
 
-def utc_timestamp() -> str:
-    """Return the current UTC timestamp in ISO-8601 format."""
-
-    return datetime.now(timezone.utc).isoformat()
-
-
 def make_run_id() -> str:
-    """Create a sortable UTC-based evaluation run identifier."""
+    """Return a UTC timestamp suitable for identifying a run."""
 
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
@@ -72,9 +65,8 @@ def get_git_commit() -> str | None:
     """
     Return the current Git commit hash.
 
-    Evaluation should continue to work even when the project is not
-    inside a Git repository, so failures are intentionally converted
-    into None.
+    Local experiments may run outside Git, so failure is represented
+    by None instead of stopping the evaluation.
     """
 
     try:
@@ -94,22 +86,16 @@ def get_git_commit() -> str | None:
 
 def sha256_file(path: str | Path) -> str:
     """
-    Calculate the SHA-256 hash of a file.
+    Return the SHA-256 digest of a file.
 
-    The hash is calculated in chunks so this also works for large files.
+    The file is processed incrementally, so large files do not need to
+    be loaded completely into memory.
     """
-
-    file_path = Path(path)
 
     digest = hashlib.sha256()
 
-    with file_path.open("rb") as file:
-        while True:
-            chunk = file.read(1024 * 1024)
-
-            if not chunk:
-                break
-
+    with Path(path).open("rb") as file:
+        while chunk := file.read(1024 * 1024):
             digest.update(chunk)
 
     return digest.hexdigest()
@@ -119,11 +105,14 @@ def save_evaluation_run(
     artifact: EvaluationRunArtifact,
     output_path: str | Path,
 ) -> None:
-    """Persist one evaluation run as formatted JSON."""
+    """Save one evaluation run as readable JSON."""
 
     path = Path(output_path)
 
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
     path.write_text(
         json.dumps(
@@ -138,10 +127,14 @@ def save_evaluation_run(
 def load_evaluation_run(
     input_path: str | Path,
 ) -> EvaluationRunArtifact:
-    """Load a previously persisted evaluation run."""
+    """Load a previously saved evaluation run."""
 
     path = Path(input_path)
 
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = json.loads(
+        path.read_text(
+            encoding="utf-8",
+        )
+    )
 
     return EvaluationRunArtifact.model_validate(data)

@@ -102,3 +102,7 @@ data/evaluation/retrieval_diagnostics.json
 # Generated end-to-end RAG evaluation results
 data/evaluation/rag_results.json
 
+# Runtime-generated retrieval indexes
+data/index/bm25.json
+data/index/corpus_manifest.json
+data/index/index_metadata.json

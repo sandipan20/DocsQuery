@@ -51,8 +51,6 @@ class Settings(BaseSettings):
     # Qdrant configuration
     # --------------------------------------------------------
 
-    qdrant_url: str = ""
-
     qdrant_api_key: str = ""
 
     # --------------------------------------------------------
@@ -90,12 +88,20 @@ class Settings(BaseSettings):
     # Qdrant configuration
     # --------------------------------------------------------
 
-    # Local Qdrant server address.
+    # Qdrant URL.
+    #
+    # Local development:
+    #   http://localhost:6333
+    #
+    # Docker Compose overrides this with:
+    #   http://qdrant:6333
     qdrant_url: str = "http://localhost:6333"
 
-    # Collection where document chunks will be stored.
+    # Collection where document chunks are stored.
     qdrant_collection: str = "docsquery_chunks"
 
+    # API key is optional for the current local deployment.
+    qdrant_api_key: str = ""
     # --------------------------------------------------------
     # BM25 configuration
     # --------------------------------------------------------
@@ -105,8 +111,6 @@ class Settings(BaseSettings):
     # --------------------------------------------------------
     # Reranker configuration
     # --------------------------------------------------------
-
-    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
     reranker_top_k: int = 5
 
