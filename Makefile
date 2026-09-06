@@ -11,12 +11,16 @@ lint:
 # Format Python code.
 format:
 	ruff format .
+	ruff format --check .
 
 # Run linting and tests together.
 check:
 	ruff check .
-	pytest -v
+# 	pytest -v
+	ruff format --check .
+	pytest tests/unit -v
 
 # Start the FastAPI development server.
 run:
 	python -m uvicorn app.main:app --reload
+

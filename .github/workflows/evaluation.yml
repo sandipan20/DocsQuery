@@ -1,0 +1,120 @@
+
+name: DocsQuery Evaluation
+
+# This workflow is intentionally manual.
+#
+# Full RAG evaluation uses:
+# - Qdrant
+# - Sentence Transformer models
+# - Cross-Encoder models
+# - Gemini API
+#
+# Keeping it manual prevents every pull request from consuming
+# external model/API resources.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evaluation:
+    name: Full RAG evaluation
+    runs-on: ubuntu-latest
+
+    # Qdrant runs as a service container available at localhost:6333.
+    services:
+      qdrant:
+        image: qdrant/qdrant:v1.18.2
+        ports:
+          - 6333:6333
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:6333/healthz || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      # ------------------------------------------------------------
+      # Checkout the exact commit being evaluated.
+      # ------------------------------------------------------------
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # ------------------------------------------------------------
+      # Configure Python.
+      # ------------------------------------------------------------
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # ------------------------------------------------------------
+      # Install packaging tools.
+      # ------------------------------------------------------------
+
+      - name: Upgrade packaging tools
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+
+      # ------------------------------------------------------------
+      # Install project dependencies.
+      # ------------------------------------------------------------
+
+      - name: Install DocsQuery
+        run: |
+          python -m pip install -e ".[dev]"
+
+      # ------------------------------------------------------------
+      # Confirm Qdrant is available.
+      # ------------------------------------------------------------
+
+      - name: Check Qdrant
+        run: |
+          python - <<'PY'
+          import urllib.request
+
+          response = urllib.request.urlopen(
+              "http://localhost:6333/healthz",
+              timeout=10,
+          )
+
+          print("Qdrant status:", response.status)
+          PY
+
+      # ------------------------------------------------------------
+      # Run all unit tests before expensive evaluation.
+      # ------------------------------------------------------------
+
+      - name: Unit tests
+        run: |
+          pytest tests/unit -v
+
+      # ------------------------------------------------------------
+      # Run the reproducible evaluation.
+      #
+      # GEMINI_API_KEY is stored as a GitHub repository secret.
+      # ------------------------------------------------------------
+
+      - name: Run reproducible evaluation
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python -m scripts.evaluate_all
+
+      # ------------------------------------------------------------
+      # Upload the generated evaluation artifact so it can be
+      # inspected after the GitHub Actions run.
+      # ------------------------------------------------------------
+
+      - name: Upload evaluation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docsquery-evaluation
+          path: data/evaluation/evaluation_run.json
+          if-no-files-found: error
+

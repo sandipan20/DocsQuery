@@ -1,0 +1,92 @@
+
+name: DocsQuery CI
+
+# Run CI for changes that are pushed to main and for pull requests.
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+# Prevent several obsolete CI runs from consuming resources at once.
+# When a new commit is pushed to the same PR, the older run is cancelled.
+concurrency:
+  group: docsquery-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# CI does not need write access to the repository.
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint and test
+    runs-on: ubuntu-latest
+
+    steps:
+      # ------------------------------------------------------------
+      # Checkout source code.
+      # ------------------------------------------------------------
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # ------------------------------------------------------------
+      # Install the exact Python minor version used by the project.
+      # ------------------------------------------------------------
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # ------------------------------------------------------------
+      # Upgrade packaging tools.
+      # ------------------------------------------------------------
+
+      - name: Upgrade packaging tools
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+
+      # ------------------------------------------------------------
+      # Install the project and development dependencies.
+      #
+      # Editable installation matches local development.
+      # ------------------------------------------------------------
+
+      - name: Install DocsQuery
+        run: |
+          python -m pip install -e ".[dev]"
+
+      # ------------------------------------------------------------
+      # Verify source-code style.
+      # ------------------------------------------------------------
+
+      - name: Ruff lint
+        run: |
+          ruff check .
+
+      # ------------------------------------------------------------
+      # Verify that source files are already formatted.
+      #
+      # --check does not modify anything; it fails if formatting
+      # would be required.
+      # ------------------------------------------------------------
+
+      - name: Ruff format check
+        run: |
+          ruff format --check .
+
+      # ------------------------------------------------------------
+      # Run the deterministic unit-test suite.
+      #
+      # Unit tests should not require Gemini credentials.
+      # ------------------------------------------------------------
+
+      - name: Unit tests
+        run: |
+          pytest tests/unit -v
