@@ -21,28 +21,17 @@ def test_manifest_is_deterministic(
     The same corpus must produce the same fingerprint.
     """
 
-    (tmp_path / "b.pdf").write_bytes(
-        b"document b"
-    )
+    (tmp_path / "b.pdf").write_bytes(b"document b")
 
-    (tmp_path / "a.pdf").write_bytes(
-        b"document a"
-    )
+    (tmp_path / "a.pdf").write_bytes(b"document a")
 
-    first = build_corpus_manifest(
-        tmp_path
-    )
+    first = build_corpus_manifest(tmp_path)
 
-    second = build_corpus_manifest(
-        tmp_path
-    )
+    second = build_corpus_manifest(tmp_path)
 
     assert first.corpus_sha256 == second.corpus_sha256
 
-    assert [
-        file.path
-        for file in first.files
-    ] == [
+    assert [file.path for file in first.files] == [
         "a.pdf",
         "b.pdf",
     ]
@@ -57,26 +46,15 @@ def test_manifest_changes_when_file_changes(
 
     pdf = tmp_path / "document.pdf"
 
-    pdf.write_bytes(
-        b"version one"
-    )
+    pdf.write_bytes(b"version one")
 
-    first = build_corpus_manifest(
-        tmp_path
-    )
+    first = build_corpus_manifest(tmp_path)
 
-    pdf.write_bytes(
-        b"version two"
-    )
+    pdf.write_bytes(b"version two")
 
-    second = build_corpus_manifest(
-        tmp_path
-    )
+    second = build_corpus_manifest(tmp_path)
 
-    assert (
-        first.corpus_sha256
-        != second.corpus_sha256
-    )
+    assert first.corpus_sha256 != second.corpus_sha256
 
 
 def test_manifest_changes_when_file_is_added(
@@ -86,26 +64,15 @@ def test_manifest_changes_when_file_is_added(
     Adding another corpus document must change the fingerprint.
     """
 
-    (tmp_path / "a.pdf").write_bytes(
-        b"document a"
-    )
+    (tmp_path / "a.pdf").write_bytes(b"document a")
 
-    first = build_corpus_manifest(
-        tmp_path
-    )
+    first = build_corpus_manifest(tmp_path)
 
-    (tmp_path / "b.pdf").write_bytes(
-        b"document b"
-    )
+    (tmp_path / "b.pdf").write_bytes(b"document b")
 
-    second = build_corpus_manifest(
-        tmp_path
-    )
+    second = build_corpus_manifest(tmp_path)
 
-    assert (
-        first.corpus_sha256
-        != second.corpus_sha256
-    )
+    assert first.corpus_sha256 != second.corpus_sha256
 
 
 def test_non_pdf_files_are_ignored(
@@ -115,18 +82,14 @@ def test_non_pdf_files_are_ignored(
     The default corpus manifest should only include PDFs.
     """
 
-    (tmp_path / "document.pdf").write_bytes(
-        b"pdf content"
-    )
+    (tmp_path / "document.pdf").write_bytes(b"pdf content")
 
     (tmp_path / "notes.txt").write_text(
         "not part of the PDF corpus",
         encoding="utf-8",
     )
 
-    manifest = build_corpus_manifest(
-        tmp_path
-    )
+    manifest = build_corpus_manifest(tmp_path)
 
     assert len(manifest.files) == 1
 
@@ -141,9 +104,7 @@ def test_empty_corpus_is_rejected(
     """
 
     with pytest.raises(ValueError):
-        build_corpus_manifest(
-            tmp_path
-        )
+        build_corpus_manifest(tmp_path)
 
 
 def test_manifest_round_trip(
@@ -153,32 +114,20 @@ def test_manifest_round_trip(
     Saved and loaded manifests must preserve their contents.
     """
 
-    (tmp_path / "document.pdf").write_bytes(
-        b"document"
-    )
+    (tmp_path / "document.pdf").write_bytes(b"document")
 
-    manifest = build_corpus_manifest(
-        tmp_path
-    )
+    manifest = build_corpus_manifest(tmp_path)
 
-    output = (
-        tmp_path
-        / "manifest.json"
-    )
+    output = tmp_path / "manifest.json"
 
     save_manifest(
         manifest,
         output,
     )
 
-    loaded = load_manifest(
-        output
-    )
+    loaded = load_manifest(output)
 
-    assert (
-        loaded.corpus_sha256
-        == manifest.corpus_sha256
-    )
+    assert loaded.corpus_sha256 == manifest.corpus_sha256
 
     assert loaded.files == manifest.files
 
@@ -190,17 +139,11 @@ def test_manifest_verification_passes(
     An unchanged corpus must successfully verify.
     """
 
-    (tmp_path / "document.pdf").write_bytes(
-        b"document"
-    )
+    (tmp_path / "document.pdf").write_bytes(b"document")
 
-    manifest = build_corpus_manifest(
-        tmp_path
-    )
+    manifest = build_corpus_manifest(tmp_path)
 
-    assert verify_manifest(
-        manifest
-    ) is True
+    assert verify_manifest(manifest) is True
 
 
 def test_manifest_verification_fails_after_change(
@@ -212,19 +155,29 @@ def test_manifest_verification_fails_after_change(
 
     pdf = tmp_path / "document.pdf"
 
-    pdf.write_bytes(
-        b"original"
-    )
+    pdf.write_bytes(b"original")
 
-    manifest = build_corpus_manifest(
-        tmp_path
-    )
+    manifest = build_corpus_manifest(tmp_path)
 
-    pdf.write_bytes(
-        b"changed"
-    )
+    pdf.write_bytes(b"changed")
 
     with pytest.raises(ValueError):
-        verify_manifest(
-            manifest
-        )
+        verify_manifest(manifest)
+
+
+def test_load_manifest_accepts_string_path(tmp_path):
+    """load_manifest should accept both str and Path inputs."""
+    corpus_dir = tmp_path / "corpus"
+    corpus_dir.mkdir()
+
+    pdf_path = corpus_dir / "example.pdf"
+    pdf_path.write_bytes(b"test pdf content")
+
+    manifest = build_corpus_manifest(corpus_dir)
+
+    manifest_path = tmp_path / "manifest.json"
+    save_manifest(manifest, manifest_path)
+
+    loaded = load_manifest(str(manifest_path))
+
+    assert loaded == manifest

@@ -11,7 +11,7 @@
 
 # Run the complete test suite.
 test:
-	pytest -v
+	python -m pytest tests/unit -v
 
 # Run Ruff linting.
 lint:
@@ -26,7 +26,7 @@ format:
 check:
 	ruff check .
 	ruff format --check .
-	pytest tests/unit -v
+	python -m pytest tests/unit -v
 
 # Start the FastAPI development server with auto-reload.
 run:

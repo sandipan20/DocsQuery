@@ -69,32 +69,23 @@ def build_corpus_manifest(
     corpus_dir = corpus_dir.resolve()
 
     if not corpus_dir.is_dir():
-        raise FileNotFoundError(
-            f"Corpus directory does not exist: {corpus_dir}"
-        )
+        raise FileNotFoundError(f"Corpus directory does not exist: {corpus_dir}")
 
     pdf_files = sorted(
         (
             path
             for path in corpus_dir.rglob("*")
-            if path.is_file()
-            and path.suffix.lower() == ".pdf"
+            if path.is_file() and path.suffix.lower() == ".pdf"
         ),
-        key=lambda path: path.relative_to(
-            corpus_dir
-        ).as_posix(),
+        key=lambda path: path.relative_to(corpus_dir).as_posix(),
     )
 
     if not pdf_files:
-        raise ValueError(
-            f"Corpus directory contains no PDF files: {corpus_dir}"
-        )
+        raise ValueError(f"Corpus directory contains no PDF files: {corpus_dir}")
 
     files = [
         CorpusFile(
-            path=path.relative_to(
-                corpus_dir
-            ).as_posix(),
+            path=path.relative_to(corpus_dir).as_posix(),
             sha256=_sha256_file(path),
         )
         for path in pdf_files
@@ -105,13 +96,9 @@ def build_corpus_manifest(
     digest = hashlib.sha256()
 
     for file_entry in files:
-        digest.update(
-            file_entry.path.encode("utf-8")
-        )
+        digest.update(file_entry.path.encode("utf-8"))
         digest.update(b"\0")
-        digest.update(
-            file_entry.sha256.encode("ascii")
-        )
+        digest.update(file_entry.sha256.encode("ascii"))
         digest.update(b"\n")
 
     return CorpusManifest(
@@ -123,19 +110,36 @@ def build_corpus_manifest(
 
 def save_manifest(
     manifest: CorpusManifest,
-    output_path: Path,
+    output_path: str | Path,
 ) -> None:
     """
-    Save a corpus manifest as JSON.
+    Save a corpus manifest as deterministic JSON.
+
+    Args:
+        manifest:
+            The Pydantic corpus manifest to save.
+        output_path:
+            Destination path. Both str and pathlib.Path are accepted.
     """
+    # Normalize the path so we can safely use .parent and .write_text().
+    output_path = Path(output_path)
+
+    # Make sure the destination directory exists.
     output_path.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
 
+    # CorpusManifest is a Pydantic model, so use model_dump()
+    # instead of assuming it has a custom to_dict() method.
+    manifest_data = manifest.model_dump(
+        mode="json",
+    )
+
+    # sort_keys + stable indentation makes the output deterministic.
     output_path.write_text(
         json.dumps(
-            manifest.model_dump(),
+            manifest_data,
             indent=2,
             sort_keys=True,
         )
@@ -145,21 +149,21 @@ def save_manifest(
 
 
 def load_manifest(
-    manifest_path: Path,
+    manifest_path: str | Path,
 ) -> CorpusManifest:
     """
     Load and validate a previously saved manifest.
-    """
-    if not manifest_path.is_file():
-        raise FileNotFoundError(
-            f"Manifest does not exist: {manifest_path}"
-        )
 
-    data = json.loads(
-        manifest_path.read_text(
-            encoding="utf-8"
-        )
-    )
+    Both string paths and pathlib.Path objects are accepted.
+    """
+    # Normalize the incoming value so callers can safely pass
+    # either a string or a pathlib.Path.
+    manifest_path = Path(manifest_path)
+
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"Manifest does not exist: {manifest_path}")
+
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     return CorpusManifest.model_validate(data)
 
