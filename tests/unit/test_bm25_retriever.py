@@ -44,18 +44,44 @@ def create_chunks() -> list[DocumentChunk]:
     ]
 
 
-def test_tokenize_normalizes_text():
+def test_tokenize_normalizes_and_removes_stopwords():
     """
-    Tokenization should lowercase the input.
+    Tokenization should lowercase text and remove common
+    English stopwords.
     """
 
     tokens = tokenize("Python IS Great!")
 
     assert tokens == [
         "python",
-        "is",
         "great",
     ]
+
+
+def test_tokenize_preserves_technical_terms():
+    """
+    Important technical terms must remain searchable.
+    """
+
+    tokens = tokenize("How do I create a new Git branch and merge it?")
+
+    assert tokens == [
+        "create",
+        "new",
+        "git",
+        "branch",
+        "merge",
+    ]
+
+
+def test_tokenize_returns_empty_for_stopword_only_query():
+    """
+    A query containing only stopwords should produce no tokens.
+    """
+
+    tokens = tokenize("how do I")
+
+    assert tokens == []
 
 
 def test_empty_index_returns_no_results():
@@ -97,8 +123,8 @@ def test_invalid_limit_is_rejected():
 
 def test_bm25_returns_matching_document():
     """
-    BM25 should return the document containing the searched
-    keyword.
+    BM25 should return the document containing the
+    searched keyword.
     """
 
     retriever = BM25Retriever(create_chunks())
@@ -129,3 +155,48 @@ def test_bm25_respects_limit():
     )
 
     assert len(results) == 2
+
+
+def test_bm25_prefers_meaningful_query_terms():
+    """
+    Natural-language filler words should not overpower
+    meaningful technical terms.
+
+    The query:
+
+        "How do I create a new Git branch?"
+
+    should favor the branch document rather than a generic
+    document containing words such as "how", "do", and "Git".
+    """
+
+    chunks = [
+        DocumentChunk(
+            chunk_id="generic",
+            document_id="doc-1",
+            text=("How do I understand Git? This introduction explains how Git works."),
+            source="git.pdf",
+            page_number=1,
+            chunk_index=0,
+        ),
+        DocumentChunk(
+            chunk_id="branch",
+            document_id="doc-1",
+            text=(
+                "Creating a new branch in Git creates "
+                "a new pointer in the commit history."
+            ),
+            source="git.pdf",
+            page_number=2,
+            chunk_index=1,
+        ),
+    ]
+
+    retriever = BM25Retriever(chunks)
+
+    results = retriever.retrieve(
+        "How do I create a new Git branch?",
+        limit=1,
+    )
+
+    assert results[0].chunk_id == "branch"

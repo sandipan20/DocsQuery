@@ -42,6 +42,7 @@ def create_example() -> EvaluationExample:
         example_id="q001",
         query="What is Git?",
         query_type="repository-basics",
+        difficulty="easy",
         relevant_chunk_ids=["chunk-001"],
         reference_answer=("Git is a distributed version control system."),
     )
@@ -79,7 +80,7 @@ def create_evaluator():
     evaluator = EndToEndEvaluator(
         rag_service=rag_service,
         answer_evaluator=answer_evaluator,
-        correctness_evaluator=(correctness_evaluator),
+        correctness_evaluator=correctness_evaluator,
     )
 
     return evaluator

@@ -4,12 +4,15 @@ DocsQuery - Embedding Service
 This module converts text into numerical vectors using a
 Sentence Transformers embedding model.
 
-The embedding service is intentionally kept separate from
-the ingestion pipeline.
+Long document chunks are split into token-safe windows before
+embedding so that text beyond the model's maximum sequence
+length is not silently discarded.
 
 Pipeline:
 
     DocumentChunk
+        ↓
+    token-safe windows
         ↓
     EmbeddingService
         ↓
@@ -20,6 +23,7 @@ Pipeline:
 
 from functools import lru_cache
 
+import numpy as np
 from sentence_transformers import SentenceTransformer
 
 from app.config.settings import get_settings
@@ -29,9 +33,12 @@ class EmbeddingService:
     """
     Generate vector embeddings for text.
 
-    The actual Sentence Transformer model is loaded lazily so
-    importing this module does not immediately download/load
-    a potentially large model.
+    Long inputs are split into token-safe windows before
+    embedding. Window embeddings are mean-pooled and the
+    final vector is normalized.
+
+    This preserves the existing DocumentChunk boundaries and
+    chunk IDs while preventing embedding truncation.
     """
 
     def __init__(self, model_name: str | None = None):
@@ -42,36 +49,160 @@ class EmbeddingService:
             model_name:
                 Optional model name.
 
-                If omitted, the model configured in the
-                application settings is used.
+                If omitted, the model configured in application
+                settings is used.
         """
 
         settings = get_settings()
 
-        # Use the explicitly supplied model if provided.
-        # Otherwise use the configured embedding model.
         self.model_name = model_name or settings.embedding_model
 
-        # The model is loaded lazily by _get_model().
         self._model: SentenceTransformer | None = None
 
     def _get_model(self) -> SentenceTransformer:
         """
-        Load the embedding model when it is first needed.
+        Load the embedding model lazily.
 
         Returns:
             Loaded SentenceTransformer model.
         """
 
-        # Avoid loading the model repeatedly.
         if self._model is None:
             self._model = SentenceTransformer(self.model_name)
 
         return self._model
 
-    def embed_text(self, text: str) -> list[float]:
+    def _split_into_token_windows(
+        self,
+        text: str,
+    ) -> list[str]:
+        """
+        Split text into windows that fit the model's token limit.
+
+        The underlying fast tokenizer is temporarily configured with
+        truncation disabled so that the complete token sequence can be
+        inspected before we perform the manual split.
+
+        Args:
+            text:
+                Text to split.
+
+        Returns:
+            Token-safe text windows.
+        """
+
+        model = self._get_model()
+        tokenizer = model.tokenizer
+        backend_tokenizer = tokenizer.backend_tokenizer
+
+        # Save the current truncation configuration.
+        previous_truncation = backend_tokenizer.truncation
+
+        # Disable backend truncation so we can inspect the full sequence.
+        backend_tokenizer.no_truncation()
+
+        try:
+            encoding = backend_tokenizer.encode(
+                text,
+                add_special_tokens=False,
+            )
+
+            token_ids = encoding.ids
+
+        finally:
+            # Restore the tokenizer's previous truncation configuration.
+            if previous_truncation is None:
+                backend_tokenizer.no_truncation()
+            else:
+                backend_tokenizer.enable_truncation(**previous_truncation)
+
+        if not token_ids:
+            return []
+
+        # Leave room for special tokens added by the model.
+        max_length = max(model.max_seq_length - 4, 1)
+
+        windows: list[str] = []
+
+        for start in range(0, len(token_ids), max_length):
+            window_ids = token_ids[start : start + max_length]
+
+            window_text = tokenizer.decode(
+                window_ids,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=True,
+            ).strip()
+
+            if window_text:
+                windows.append(window_text)
+
+        return windows
+
+    def _embed_long_text(
+        self,
+        text: str,
+    ) -> list[float]:
+        """
+        Embed text using token-safe windows.
+
+        Each window is embedded independently. The resulting
+        vectors are mean-pooled and normalized.
+
+        Args:
+            text:
+                Text to embed.
+
+        Returns:
+            Normalized embedding vector.
+        """
+
+        model = self._get_model()
+
+        windows = self._split_into_token_windows(text)
+
+        if not windows:
+            raise ValueError("Cannot generate an embedding for empty text.")
+
+        # A single safe window can use the normal encode path.
+        if len(windows) == 1:
+            vector = model.encode(
+                windows[0],
+                normalize_embeddings=True,
+            )
+
+            return vector.tolist()
+
+        # Embed every window independently.
+        window_vectors = model.encode(
+            windows,
+            normalize_embeddings=False,
+        )
+
+        # Mean-pool all window representations.
+        pooled_vector = np.mean(
+            window_vectors,
+            axis=0,
+        )
+
+        # Normalize the pooled representation.
+        norm = np.linalg.norm(pooled_vector)
+
+        if norm == 0:
+            raise ValueError("Generated embedding has zero magnitude.")
+
+        pooled_vector = pooled_vector / norm
+
+        return pooled_vector.tolist()
+
+    def embed_text(
+        self,
+        text: str,
+    ) -> list[float]:
         """
         Generate an embedding for a single piece of text.
+
+        Long inputs are automatically split into token-safe
+        windows.
 
         Args:
             text:
@@ -88,16 +219,7 @@ class EmbeddingService:
         if not text.strip():
             raise ValueError("Cannot generate an embedding for empty text.")
 
-        model = self._get_model()
-
-        # encode() converts text into a numerical vector.
-        vector = model.encode(
-            text,
-            normalize_embeddings=True,
-        )
-
-        # Convert NumPy output into normal Python floats.
-        return vector.tolist()
+        return self._embed_long_text(text)
 
     def embed_texts(
         self,
@@ -106,8 +228,7 @@ class EmbeddingService:
         """
         Generate embeddings for multiple texts.
 
-        Batch encoding is more efficient than calling
-        embed_text() repeatedly.
+        Each text is independently split into token-safe windows.
 
         Args:
             texts:
@@ -115,6 +236,10 @@ class EmbeddingService:
 
         Returns:
             List of embedding vectors.
+
+        Raises:
+            ValueError:
+                If any text is empty.
         """
 
         if not texts:
@@ -123,21 +248,11 @@ class EmbeddingService:
         if any(not text.strip() for text in texts):
             raise ValueError("Cannot generate embeddings for empty text.")
 
-        model = self._get_model()
-
-        vectors = model.encode(
-            texts,
-            normalize_embeddings=True,
-        )
-
-        return vectors.tolist()
+        return [self._embed_long_text(text) for text in texts]
 
     def dimension(self) -> int:
         """
         Return the dimensionality of the embedding model.
-
-        For example, some models produce vectors with
-        384 dimensions, while others may produce 768 or more.
 
         Returns:
             Number of dimensions in the embedding vector.
@@ -153,8 +268,8 @@ def get_embedding_service() -> EmbeddingService:
     """
     Return a cached EmbeddingService instance.
 
-    This prevents us from creating multiple service objects
-    throughout the application.
+    This prevents multiple embedding service objects from
+    being created throughout the application.
     """
 
     return EmbeddingService()

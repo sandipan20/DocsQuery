@@ -13,8 +13,18 @@ The goal is to measure whether each retrieval stage actually
 improves retrieval quality.
 
 This script does NOT call Gemini. It evaluates retrieval only.
+
+Usage:
+
+    python -m scripts.evaluate_retrieval
+
+    python -m scripts.evaluate_retrieval --method bm25
+    python -m scripts.evaluate_retrieval --method vector
+    python -m scripts.evaluate_retrieval --method hybrid
+    python -m scripts.evaluate_retrieval --method reranker
 """
 
+import argparse
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -39,6 +49,41 @@ RetrieverFunction = Callable[
     [str, int],
     list[str],
 ]
+
+
+# Public CLI names mapped to the internal benchmark strategy names.
+METHODS = {
+    "bm25": "BM25",
+    "vector": "Vector",
+    "hybrid": "Hybrid RRF",
+    "reranker": "Hybrid RRF + Reranker",
+}
+
+
+def parse_args() -> argparse.Namespace:
+    """
+    Parse command-line arguments.
+
+    Without --method, all retrieval strategies are evaluated.
+
+    With --method, only the selected strategy is evaluated.
+    """
+
+    parser = argparse.ArgumentParser(
+        description="Run the DocsQuery retrieval benchmark."
+    )
+
+    parser.add_argument(
+        "--method",
+        choices=list(METHODS),
+        default=None,
+        help=(
+            "Evaluate only one retrieval strategy. "
+            "Omit this option to evaluate all strategies."
+        ),
+    )
+
+    return parser.parse_args()
 
 
 def create_bm25_retriever() -> BM25Index:
@@ -86,7 +131,9 @@ def build_strategies() -> dict[
 
     settings = get_settings()
 
-    reranker = CrossEncoderReranker(model_name=settings.reranker_model)
+    reranker = CrossEncoderReranker(
+        model_name=settings.reranker_model,
+    )
 
     # --------------------------------------------------------
     # BM25 strategy.
@@ -181,13 +228,35 @@ def print_result(
     print(result.strategy)
     print("=" * 70)
 
-    print(f"Examples:      {result.num_examples}")
+    # --------------------------------------------------------
+    # Evaluation population.
+    # --------------------------------------------------------
+
+    print(f"Total examples:        {result.num_examples}")
+    print(f"Non-negative examples: {result.num_non_negative_examples}")
+    print(f"Adversarial examples:  {result.num_adversarial_examples}")
+    print(f"Negative examples:     {result.num_negative_examples}")
+
+    print()
+
+    # --------------------------------------------------------
+    # Standard retrieval metrics.
+    #
+    # Negative examples are excluded from these metrics.
+    # --------------------------------------------------------
+
+    print("Standard Retrieval Metrics")
+    print("-" * 70)
 
     print(f"Recall@1:      {metrics.recall_at_1:.4f}")
 
     print(f"Recall@3:      {metrics.recall_at_3:.4f}")
 
     print(f"Recall@5:      {metrics.recall_at_5:.4f}")
+
+    print(f"Recall@10:     {metrics.recall_at_10:.4f}")
+
+    print(f"Recall@20:     {metrics.recall_at_20:.4f}")
 
     print(f"Precision@1:   {metrics.precision_at_1:.4f}")
 
@@ -198,6 +267,25 @@ def print_result(
     print(f"MRR:           {metrics.mrr:.4f}")
 
     print(f"nDCG@5:        {metrics.ndcg_at_5:.4f}")
+
+    print()
+
+    # --------------------------------------------------------
+    # Negative-query safety metrics.
+    # --------------------------------------------------------
+
+    print("Negative Retrieval Safety")
+    print("-" * 70)
+
+    print(f"False Retrieval Rate@1:  {metrics.false_retrieval_rate_at_1:.4f}")
+
+    print(f"False Retrieval Rate@3:  {metrics.false_retrieval_rate_at_3:.4f}")
+
+    print(f"False Retrieval Rate@5:  {metrics.false_retrieval_rate_at_5:.4f}")
+
+    print(f"False Retrieval Rate@10: {metrics.false_retrieval_rate_at_10:.4f}")
+
+    print(f"False Retrieval Rate@20: {metrics.false_retrieval_rate_at_20:.4f}")
 
 
 def save_results(
@@ -231,8 +319,15 @@ def save_results(
 
 def main() -> None:
     """
-    Run the complete retrieval benchmark.
+    Run the retrieval benchmark.
+
+    By default all strategies are evaluated.
+
+    When --method is supplied, only the selected strategy
+    is evaluated.
     """
+
+    args = parse_args()
 
     # --------------------------------------------------------
     # Load the ground-truth evaluation dataset.
@@ -251,12 +346,26 @@ def main() -> None:
 
     strategies = build_strategies()
 
+    # --------------------------------------------------------
+    # Select one strategy when requested.
+    # --------------------------------------------------------
+
+    if args.method is not None:
+        selected_strategy = METHODS[args.method]
+
+        strategies = {
+            selected_strategy: strategies[selected_strategy],
+        }
+
+        print(f"Selected method: {selected_strategy}")
+
     evaluator = RetrievalEvaluator()
 
     evaluation_results = []
 
     # --------------------------------------------------------
-    # Evaluate every strategy using exactly the same dataset.
+    # Evaluate selected strategy/strategies using the same
+    # ground-truth dataset.
     # --------------------------------------------------------
 
     for strategy_name, retriever in strategies.items():

@@ -7,6 +7,7 @@ Implements common information-retrieval metrics:
     Precision@K
     MRR
     nDCG@K
+    False Retrieval Rate@K
 
 The functions operate on chunk IDs, which means they are
 independent of BM25, vector search, Qdrant, or reranking.
@@ -66,7 +67,6 @@ def recall_at_k(
         return 0.0
 
     top_k = retrieved_ids[:k]
-
     retrieved_relevant = set(top_k) & relevant_ids
 
     return len(retrieved_relevant) / len(relevant_ids)
@@ -110,6 +110,82 @@ def precision_at_k(
     retrieved_relevant = set(top_k) & relevant_ids
 
     return len(retrieved_relevant) / len(top_k)
+
+
+def false_retrieval_rate_at_k(
+    retrieved_ids: list[str],
+    k: int,
+) -> float:
+    """
+    Calculate False Retrieval Rate@K for a negative query.
+
+    A negative query is considered to have a false retrieval when
+    the retriever returns at least one result in the top-K.
+
+    This is a per-query metric:
+
+        1.0 -> at least one chunk was retrieved
+        0.0 -> no chunks were retrieved
+
+    Args:
+        retrieved_ids:
+            Ranked chunk IDs returned by the retriever.
+
+        k:
+            Number of top results to inspect.
+
+    Returns:
+        1.0 if at least one result exists in top-K,
+        otherwise 0.0.
+
+    Raises:
+        ValueError:
+            If k is not positive.
+    """
+
+    _validate_k(k)
+
+    return 1.0 if retrieved_ids[:k] else 0.0
+
+
+def mean_false_retrieval_rate_at_k(
+    ranked_lists: list[list[str]],
+    k: int,
+) -> float:
+    """
+    Calculate Mean False Retrieval Rate@K across negative queries.
+
+    Formula:
+
+        negative queries with >=1 retrieved result in top-K
+        --------------------------------------------------
+                    total negative queries
+
+    Args:
+        ranked_lists:
+            Retrieval results, one list per negative query.
+
+        k:
+            Number of top results to inspect.
+
+    Returns:
+        False Retrieval Rate between 0.0 and 1.0.
+    """
+
+    _validate_k(k)
+
+    if not ranked_lists:
+        return 0.0
+
+    false_retrievals = sum(
+        false_retrieval_rate_at_k(
+            retrieved_ids,
+            k,
+        )
+        for retrieved_ids in ranked_lists
+    )
+
+    return false_retrievals / len(ranked_lists)
 
 
 def reciprocal_rank(

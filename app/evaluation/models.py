@@ -5,7 +5,17 @@ Defines the structured representation of the retrieval
 evaluation dataset.
 """
 
-from pydantic import BaseModel, Field
+from typing import Literal
+
+from pydantic import BaseModel, Field, model_validator
+
+EvaluationDifficulty = Literal[
+    "easy",
+    "medium",
+    "hard",
+    "negative",
+    "adversarial",
+]
 
 
 class EvaluationExample(BaseModel):
@@ -17,38 +27,54 @@ class EvaluationExample(BaseModel):
     - a unique identifier
     - the user query
     - the type/category of the query
-    - one or more ground-truth relevant chunks
+    - the difficulty of the query
+    - zero or more ground-truth relevant chunks
     - an optional reference answer for answer-level evaluation
+
+    Negative examples intentionally have zero relevant chunks.
     """
 
-    # Unique identifier for this evaluation example.
     example_id: str
 
-    # The natural-language question sent to the retriever.
     query: str = Field(
         min_length=1,
     )
 
-    # Category of the query.
-    #
-    # This helps us later determine whether retrieval performs
-    # differently for branching, merging, rebasing, etc.
     query_type: str = Field(
         min_length=1,
     )
 
-    # Chunk IDs that are considered relevant for this query.
-    #
-    # More than one chunk is allowed because some questions
-    # require evidence from multiple sections of the corpus.
+    difficulty: EvaluationDifficulty
+
+    # Positive examples have one or more relevant chunks.
+    # Negative examples intentionally have an empty list.
     relevant_chunk_ids: list[str] = Field(
-        min_length=1,
+        default_factory=list,
     )
 
-    # Optional reference answer used for answer-level evaluation.
-    #
-    # Retrieval-only examples can omit this field.
     reference_answer: str | None = None
+
+    @model_validator(mode="after")
+    def validate_relevance_annotations(self):
+        """
+        Ensure relevance annotations agree with difficulty.
+
+        Positive/adversarial examples require at least one
+        relevant chunk.
+
+        Negative examples must contain no relevant chunks.
+        """
+
+        if self.difficulty == "negative":
+            if self.relevant_chunk_ids:
+                raise ValueError("Negative examples must have no relevant chunk IDs.")
+
+        elif not self.relevant_chunk_ids:
+            raise ValueError(
+                "Non-negative examples must have at least one relevant chunk ID."
+            )
+
+        return self
 
 
 class EvaluationDataset(BaseModel):
@@ -56,11 +82,8 @@ class EvaluationDataset(BaseModel):
     Represents the complete retrieval evaluation dataset.
     """
 
-    # Dataset version. This changes when the dataset schema
-    # or ground-truth examples are meaningfully updated.
     version: str
 
-    # All evaluation questions.
     examples: list[EvaluationExample] = Field(
         min_length=1,
     )

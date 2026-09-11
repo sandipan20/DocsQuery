@@ -64,6 +64,70 @@ def test_partial_recall_at_k():
     )
 
 
+def test_recall_at_deeper_cutoffs():
+    """
+    Deeper K values should detect relevant chunks that occur
+    beyond the original top-5 evaluation window.
+    """
+
+    retrieved = [
+        "chunk-1",
+        "chunk-2",
+        "chunk-3",
+        "chunk-4",
+        "chunk-5",
+        "chunk-6",
+        "chunk-7",
+        "chunk-8",
+        "chunk-9",
+        "chunk-a",
+        "chunk-11",
+        "chunk-12",
+        "chunk-13",
+        "chunk-14",
+        "chunk-15",
+        "chunk-16",
+        "chunk-17",
+        "chunk-18",
+        "chunk-19",
+        "chunk-b",
+    ]
+
+    relevant = {
+        "chunk-a",
+        "chunk-b",
+    }
+
+    # Only the first relevant chunk appears within top-10.
+    assert (
+        recall_at_k(
+            retrieved,
+            relevant,
+            k=5,
+        )
+        == 0.0
+    )
+
+    assert (
+        recall_at_k(
+            retrieved,
+            relevant,
+            k=10,
+        )
+        == 0.5
+    )
+
+    # Both relevant chunks appear within top-20.
+    assert (
+        recall_at_k(
+            retrieved,
+            relevant,
+            k=20,
+        )
+        == 1.0
+    )
+
+
 def test_precision_at_k():
     """
     Two relevant results out of four gives 0.5 precision.

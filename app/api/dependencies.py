@@ -9,9 +9,11 @@ The retrieval service contains:
     Vector Retrieval
     Qdrant
     Hybrid RRF
+    Cross-Encoder Reranking
 
-We create it once and reuse it rather than rebuilding the
-retrieval stack for every HTTP request.
+The retrieval service is created once and cached so that expensive
+components such as embedding and reranking models are not recreated
+for every HTTP request.
 """
 
 from functools import lru_cache
@@ -19,7 +21,7 @@ from functools import lru_cache
 from app.config.settings import get_settings
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.bm25_storage import BM25Storage
-from app.retrieval.hybrid_retriever import HybridRetriever
+from app.retrieval.reranker import CrossEncoderReranker
 from app.retrieval.vector_retriever import VectorRetriever
 from app.services.retrieval_service import RetrievalService
 
@@ -29,12 +31,12 @@ def get_retrieval_service() -> RetrievalService:
     """
     Create and cache the application's retrieval service.
 
-    The first call creates the retrieval stack.
+    The first call creates the complete retrieval stack.
 
     Later calls return the same instance.
 
-    This prevents expensive objects such as embedding models
-    from being recreated for every HTTP request.
+    This prevents expensive objects such as embedding and
+    reranking models from being recreated for every request.
     """
 
     settings = get_settings()
@@ -43,17 +45,15 @@ def get_retrieval_service() -> RetrievalService:
     # BM25
     # --------------------------------------------------------
 
-    # Create persistent BM25 storage using the configured
-    # path from application settings.
-    bm25_storage = BM25Storage(settings.bm25_index_path)
+    bm25_storage = BM25Storage(
+        settings.bm25_index_path,
+    )
 
-    # Create the BM25 index manager.
-    bm25_index = BM25Index(storage=bm25_storage)
+    bm25_index = BM25Index(
+        storage=bm25_storage,
+    )
 
-    # If a persisted BM25 index exists, load it into memory.
-    #
-    # This allows the web application to start with the
-    # previously indexed documents already available.
+    # Load the persisted BM25 corpus when it exists.
     if bm25_storage.exists():
         bm25_index.load()
 
@@ -61,29 +61,24 @@ def get_retrieval_service() -> RetrievalService:
     # Vector retrieval
     # --------------------------------------------------------
 
-    # VectorRetriever internally uses:
-    #
-    #     EmbeddingService
-    #            +
-    #        QdrantVectorStore
-    #
-    # These objects are created once and reused.
     vector_retriever = VectorRetriever()
 
     # --------------------------------------------------------
-    # Hybrid retrieval
+    # Cross-encoder reranker
     # --------------------------------------------------------
 
-    # Combine BM25 and vector retrieval using RRF.
-    hybrid_retriever = HybridRetriever(
-        bm25_retriever=bm25_index.retriever,
-        vector_retriever=vector_retriever,
+    reranker = CrossEncoderReranker(
+        model_name=settings.reranker_model,
     )
 
     # --------------------------------------------------------
-    # Application service
+    # Complete application retrieval service
     # --------------------------------------------------------
 
     return RetrievalService(
-        retriever=hybrid_retriever,
+        bm25_index=bm25_index,
+        vector_retriever=vector_retriever,
+        reranker=reranker,
+        candidate_limit=settings.top_k_dense,
+        top_k=settings.reranker_top_k,
     )

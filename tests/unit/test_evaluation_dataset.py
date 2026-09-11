@@ -7,9 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from app.evaluation.dataset import (
-    load_evaluation_dataset,
-)
+from app.evaluation.dataset import load_evaluation_dataset
 from app.retrieval.bm25_storage import BM25Storage
 
 
@@ -33,6 +31,7 @@ def test_dataset_loads(tmp_path: Path):
                         "example_id": "q001",
                         "query": "What is Python?",
                         "query_type": "general",
+                        "difficulty": "easy",
                         "relevant_chunk_ids": ["chunk-001"],
                     }
                 ],
@@ -48,7 +47,7 @@ def test_dataset_loads(tmp_path: Path):
 
     assert len(dataset.examples) == 1
 
-    assert dataset.examples[0].query == ("What is Python?")
+    assert dataset.examples[0].query == "What is Python?"
 
 
 def test_missing_dataset_fails():
@@ -60,9 +59,7 @@ def test_missing_dataset_fails():
         load_evaluation_dataset("does-not-exist.json")
 
 
-def test_invalid_dataset_fails(
-    tmp_path: Path,
-):
+def test_invalid_dataset_fails(tmp_path: Path):
     """
     Invalid dataset structure should be rejected.
 
@@ -85,21 +82,26 @@ def test_real_retrieval_dataset_loads():
     Verify that the project's actual evaluation dataset
     is valid.
 
-    The real project dataset was upgraded to version 1.1.0
-    when query_type was added.
+    The real project dataset is version 1.3.0 and includes
+    standard, adversarial, and negative evaluation examples.
     """
 
     dataset = load_evaluation_dataset("data/evaluation/retrieval_dataset.json")
 
-    assert dataset.version == "1.1.0"
+    assert dataset.version == "1.3.0"
 
-    assert len(dataset.examples) >= 3
+    assert len(dataset.examples) == 48
 
     for example in dataset.examples:
         assert example.example_id
         assert example.query.strip()
         assert example.query_type.strip()
-        assert example.relevant_chunk_ids
+
+        # Negative examples intentionally have no relevant chunks.
+        if example.difficulty == "negative":
+            assert example.relevant_chunk_ids == []
+        else:
+            assert example.relevant_chunk_ids
 
 
 def test_real_evaluation_chunk_ids_exist():

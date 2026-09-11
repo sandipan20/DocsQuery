@@ -28,35 +28,90 @@ from rank_bm25 import BM25Okapi
 from app.ingestion.models import DocumentChunk
 from app.retrieval.models import RetrievalResult
 
+# ------------------------------------------------------------
+# Common English stopwords.
+#
+# These words usually provide little useful signal for
+# technical-document retrieval.
+#
+# Important technical terms such as:
+#
+#     git
+#     branch
+#     merge
+#     rebase
+#     python
+#
+# are intentionally NOT included.
+# ------------------------------------------------------------
+
+STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "do",
+    "does",
+    "for",
+    "from",
+    "how",
+    "i",
+    "in",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "was",
+    "were",
+    "what",
+    "when",
+    "where",
+    "which",
+    "who",
+    "with",
+}
+
 
 def tokenize(text: str) -> list[str]:
     """
-    Convert text into simple lowercase tokens.
+    Convert text into normalized BM25 tokens.
 
-    Args:
-        text:
-            Input text.
+    Processing steps:
 
-    Returns:
-        List of normalized tokens.
+    1. Convert text to lowercase.
+    2. Extract word/number tokens.
+    3. Remove common English stopwords.
+
+    Example:
+
+        "How do I create a new Git branch?"
+
+    becomes approximately:
+
+        ["create", "new", "git", "branch"]
+
+    Technical terms are preserved because only the explicit
+    stopword set above is removed.
     """
 
-    # Lowercase the text so searches are case-insensitive.
+    # Make matching case-insensitive.
     text = text.lower()
 
     # Extract words and numbers.
-    #
-    # Example:
-    #
-    # "Python 3.12 is great!"
-    #
-    # becomes approximately:
-    #
-    # ["python", "3", "12", "is", "great"]
-    return re.findall(
+    tokens = re.findall(
         r"\b\w+\b",
         text,
     )
+
+    # Remove only the explicitly defined English stopwords.
+    return [token for token in tokens if token not in STOPWORDS]
 
 
 class BM25Retriever:
@@ -100,12 +155,15 @@ class BM25Retriever:
             self.bm25 = None
             return
 
+        # Keep the original DocumentChunk objects because their
+        # metadata is required when constructing RetrievalResult.
         self.chunks = list(chunks)
 
-        # Tokenize every chunk.
+        # Tokenize every document using the same preprocessing
+        # function used for queries.
         tokenized_documents = [tokenize(chunk.text) for chunk in self.chunks]
 
-        # Build the BM25 index.
+        # Build the BM25Okapi index.
         self.bm25 = BM25Okapi(tokenized_documents)
 
     def retrieve(
@@ -133,19 +191,23 @@ class BM25Retriever:
         if limit <= 0:
             raise ValueError("limit must be greater than 0.")
 
-        # We cannot search until an index exists.
+        # Searching is impossible until an index has been built.
         if self.bm25 is None:
             return []
 
+        # Apply the exact same preprocessing to the query
+        # that was applied to the documents.
         query_tokens = tokenize(query)
 
+        # A query containing only stopwords has no useful
+        # lexical signal for BM25.
         if not query_tokens:
             return []
 
-        # Calculate BM25 scores for every indexed chunk.
+        # Calculate one BM25 score for every indexed chunk.
         scores = self.bm25.get_scores(query_tokens)
 
-        # Sort indexes by descending score.
+        # Sort document indexes by descending BM25 score.
         ranked_indexes = sorted(
             range(len(scores)),
             key=lambda index: scores[index],
@@ -154,6 +216,8 @@ class BM25Retriever:
 
         results: list[RetrievalResult] = []
 
+        # Convert the highest-ranked chunks into the common
+        # RetrievalResult model used by the rest of DocsQuery.
         for index in ranked_indexes[:limit]:
             chunk = self.chunks[index]
 

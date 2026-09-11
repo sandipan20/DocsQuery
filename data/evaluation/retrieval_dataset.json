@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.3.0",
   "examples": [
     {
       "example_id": "q001",
@@ -7,32 +7,430 @@
       "query_type": "repository-basics",
       "relevant_chunk_ids": [
         "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0",
-        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-51"
-      ]
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-51",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-466"
+      ],
+      "difficulty": "easy"
     },
     {
       "example_id": "q002",
       "query": "How do I create a new Git branch?",
       "query_type": "branching",
       "relevant_chunk_ids": [
-        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-430"
-      ]
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-48",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-93"
+      ],
+      "difficulty": "easy"
     },
     {
       "example_id": "q003",
       "query": "How do I merge a branch?",
       "query_type": "merging",
       "relevant_chunk_ids": [
-        "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0"
-      ]
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-98",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-103",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-104",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-536"
+      ],
+      "difficulty": "easy"
     },
     {
       "example_id": "q004",
       "query": "What is Git rebase?",
       "query_type": "rebasing",
       "relevant_chunk_ids": [
-        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-335"
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-125",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-128",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-132",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-368"
+      ],
+      "difficulty": "easy"
+    },
+    {
+      "example_id": "q005",
+      "query": "What does git status show?",
+      "query_type": "repository-basics",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-54",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-533"
       ]
+    },
+    {
+      "example_id": "q006",
+      "query": "What does git clone do?",
+      "query_type": "repository-basics",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-52",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-532"
+      ]
+    },
+    {
+      "example_id": "q007",
+      "query": "What does git add do?",
+      "query_type": "repository-basics",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-56",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-49"
+      ]
+    },
+    {
+      "example_id": "q008",
+      "query": "What does git commit do?",
+      "query_type": "repository-basics",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-64"
+      ]
+    },
+    {
+      "example_id": "q009",
+      "query": "What does git log show?",
+      "query_type": "history-inspection",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-67"
+      ]
+    },
+    {
+      "example_id": "q010",
+      "query": "What does git diff show?",
+      "query_type": "history-inspection",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-61"
+      ]
+    },
+    {
+      "example_id": "q011",
+      "query": "What does git branch do?",
+      "query_type": "branching",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-535",
+        "7f0b67701fa7a156dae799a85f379f17da8e306e6cd5574a90f42d84a0ccaa7b-chunk-0"
+      ]
+    },
+    {
+      "example_id": "q012",
+      "query": "What does git checkout do?",
+      "query_type": "branching",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-310"
+      ]
+    },
+    {
+      "example_id": "q013",
+      "query": "What does git merge do?",
+      "query_type": "merging",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-536"
+      ]
+    },
+    {
+      "example_id": "q014",
+      "query": "What does git push do?",
+      "query_type": "remote-repositories",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-80"
+      ]
+    },
+    {
+      "example_id": "q015",
+      "query": "What does git pull do?",
+      "query_type": "remote-repositories",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-80"
+      ]
+    },
+    {
+      "example_id": "q016",
+      "query": "What does git fetch do?",
+      "query_type": "remote-repositories",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-539"
+      ]
+    },
+    {
+      "example_id": "q017",
+      "query": "What does git remote do?",
+      "query_type": "remote-repositories",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-78"
+      ]
+    },
+    {
+      "example_id": "q018",
+      "query": "What does git tag do?",
+      "query_type": "tagging",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-83"
+      ]
+    },
+    {
+      "example_id": "q019",
+      "query": "What does git reset do?",
+      "query_type": "undoing-changes",
+      "difficulty": "medium",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-300"
+      ]
+    },
+    {
+      "example_id": "q020",
+      "query": "What does git stash do?",
+      "query_type": "temporary-work",
+      "difficulty": "medium",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-268"
+      ]
+    },
+    {
+      "example_id": "q021",
+      "query": "What does git rm do?",
+      "query_type": "file-management",
+      "difficulty": "medium",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-65"
+      ]
+    },
+    {
+      "example_id": "q022",
+      "query": "What does git clean do?",
+      "query_type": "file-management",
+      "difficulty": "medium",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-273"
+      ]
+    },
+    {
+      "example_id": "q023",
+      "query": "What does git restore do?",
+      "query_type": "undoing-changes",
+      "difficulty": "medium",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-76",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-77"
+      ]
+    },
+    {
+      "example_id": "q024",
+      "query": "What does git mv do?",
+      "query_type": "file-management",
+      "difficulty": "medium",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-66",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-67"
+      ]
+    },
+    {
+      "example_id": "q025",
+      "query": "What does git diff --staged show?",
+      "query_type": "history-inspection",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-61",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-62"
+      ]
+    },
+    {
+      "example_id": "q026",
+      "query": "What does git reset --hard do?",
+      "query_type": "undoing-changes",
+      "difficulty": "hard",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-303"
+      ]
+    },
+    {
+      "example_id": "q027",
+      "query": "What does git stash pop do?",
+      "query_type": "temporary-work",
+      "difficulty": "medium",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-270"
+      ]
+    },
+    {
+      "example_id": "q028",
+      "query": "What is the difference between git fetch and git pull?",
+      "query_type": "remote-repositories",
+      "difficulty": "medium",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-539",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-80"
+      ]
+    },
+    {
+      "example_id": "q029",
+      "query": "What is the difference between git merge and git rebase?",
+      "query_type": "merging",
+      "difficulty": "hard",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-125",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-132"
+      ]
+    },
+    {
+      "example_id": "q030",
+      "query": "How do I resolve merge conflicts in Git?",
+      "query_type": "merging",
+      "difficulty": "hard",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-105",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-106"
+      ]
+    },
+    {
+      "example_id": "q031",
+      "query": "What is HEAD in Git?",
+      "query_type": "repository-basics",
+      "difficulty": "medium",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-291",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-477"
+      ]
+    },
+    {
+      "example_id": "q032",
+      "query": "What is the purpose of a .gitignore file?",
+      "query_type": "repository-basics",
+      "difficulty": "easy",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-58",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-60"
+      ]
+    },
+    {
+      "example_id": "q033",
+      "query": "Can git reset --hard be used to preserve the current working tree changes?",
+      "query_type": "undoing-changes",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-303"
+      ],
+      "difficulty": "adversarial"
+    },
+    {
+      "example_id": "q034",
+      "query": "Does git fetch automatically merge the downloaded changes into my current branch?",
+      "query_type": "remote-repositories",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-539"
+      ],
+      "difficulty": "adversarial"
+    },
+    {
+      "example_id": "q035",
+      "query": "Is git merge mainly used to rewrite the existing branch history?",
+      "query_type": "merging",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-536",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-98"
+      ],
+      "difficulty": "adversarial"
+    },
+    {
+      "example_id": "q036",
+      "query": "Does git restore permanently remove the commit history associated with a file?",
+      "query_type": "undoing-changes",
+      "relevant_chunk_ids": [
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-76",
+        "403f4051cdca2c585361d85f6e87d5dd87d8c544fc91dced007711babe81e8ef-chunk-77"
+      ],
+      "difficulty": "adversarial"
+    },
+    {
+      "example_id": "q037",
+      "query": "How do I install Docker on macOS using Git?",
+      "query_type": "outside-corpus",
+      "relevant_chunk_ids": [],
+      "difficulty": "negative"
+    },
+    {
+      "example_id": "q038",
+      "query": "How do I configure a Python virtual environment for FastAPI?",
+      "query_type": "outside-corpus",
+      "relevant_chunk_ids": [],
+      "difficulty": "negative"
+    },
+    {
+      "example_id": "q039",
+      "query": "What is the best way to deploy a FastAPI application to AWS?",
+      "query_type": "outside-corpus",
+      "relevant_chunk_ids": [],
+      "difficulty": "negative"
+    },
+    {
+      "example_id": "q040",
+      "query": "How does a Qdrant vector database perform semantic search?",
+      "query_type": "outside-corpus",
+      "relevant_chunk_ids": [],
+      "difficulty": "negative"
+    },
+    {
+        "example_id": "q041",
+        "query": "How do I create and activate a Python virtual environment on macOS?",
+        "query_type": "outside-corpus",
+        "relevant_chunk_ids": [],
+        "difficulty": "negative"
+    },
+    {
+        "example_id": "q042",
+        "query": "How do I create a FastAPI endpoint that accepts a JSON request body?",
+        "query_type": "outside-corpus",
+        "relevant_chunk_ids": [],
+        "difficulty": "negative"
+    },
+    {
+        "example_id": "q043",
+        "query": "How do I deploy a Git repository as a FastAPI application on AWS?",
+        "query_type": "outside-corpus",
+        "relevant_chunk_ids": [],
+        "difficulty": "negative"
+    },
+    {
+        "example_id": "q044",
+        "query": "How do I connect a Git application to a PostgreSQL database?",
+        "query_type": "outside-corpus",
+        "relevant_chunk_ids": [],
+        "difficulty": "negative"
+    },
+    {
+        "example_id": "q045",
+        "query": "How does Qdrant perform vector similarity search?",
+        "query_type": "outside-corpus",
+        "relevant_chunk_ids": [],
+        "difficulty": "negative"
+    },
+    {
+        "example_id": "q046",
+        "query": "How do I build a React frontend for a Git documentation application?",
+        "query_type": "outside-corpus",
+        "relevant_chunk_ids": [],
+        "difficulty": "negative"
+    },
+    {
+        "example_id": "q047",
+        "query": "How do I train a neural network to classify images with Python?",
+        "query_type": "outside-corpus",
+        "relevant_chunk_ids": [],
+        "difficulty": "negative"
+    },
+    {
+        "example_id": "q048",
+        "query": "What is the recommended way to deploy a Dockerized FastAPI service?",
+        "query_type": "outside-corpus",
+        "relevant_chunk_ids": [],
+        "difficulty": "negative"
     }
   ]
 }
