@@ -56,8 +56,16 @@ class QdrantVectorStore:
 
         self.collection_name = collection_name or settings.qdrant_collection
 
+        self.api_key = settings.qdrant_api_key or None
+
         # Create the Qdrant client.
-        self.client = QdrantClient(url=self.url)
+        #
+        # Local development uses no API key.
+        # Production Qdrant Cloud uses the configured API key.
+        self.client = QdrantClient(
+            url=self.url,
+            api_key=self.api_key,
+        )
 
     def create_collection(
         self,

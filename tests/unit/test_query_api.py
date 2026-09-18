@@ -6,6 +6,10 @@ from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
+from app.generation.llm import (
+    LLMServiceError,
+    LLMServiceUnavailableError,
+)
 from app.generation.models import GeneratedAnswer
 from app.main import create_app
 from app.retrieval.models import RetrievalResult
@@ -155,3 +159,59 @@ def test_query_rejects_invalid_top_k():
         )
 
     assert response.status_code == 422
+
+
+def test_query_returns_503_when_llm_is_unavailable():
+    """
+    Temporary LLM outages should be exposed as HTTP 503.
+    """
+
+    app = create_app()
+
+    with TestClient(app) as client:
+        app.state.container.rag_service = MagicMock()
+
+        app.state.container.rag_service.query.side_effect = LLMServiceUnavailableError(
+            "The language model is temporarily unavailable. Please try again later."
+        )
+
+        response = client.post(
+            "/api/v1/query",
+            json={
+                "query": "What is Python?",
+                "top_k": 5,
+            },
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == (
+        "The language model is temporarily unavailable. Please try again later."
+    )
+
+
+def test_query_returns_502_for_llm_service_error():
+    """
+    Unexpected provider/API failures should be exposed as HTTP 502.
+    """
+
+    app = create_app()
+
+    with TestClient(app) as client:
+        app.state.container.rag_service = MagicMock()
+
+        app.state.container.rag_service.query.side_effect = LLMServiceError(
+            "The language model service failed to generate a response."
+        )
+
+        response = client.post(
+            "/api/v1/query",
+            json={
+                "query": "What is Python?",
+                "top_k": 5,
+            },
+        )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == (
+        "The language model service failed to generate a response."
+    )

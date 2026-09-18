@@ -1,8 +1,11 @@
 """
 Unit tests for the retrieval service.
 
-These tests verify that the service correctly coordinates
-hybrid retrieval and cross-encoder reranking.
+These tests verify that the service correctly coordinates:
+
+    Vector confidence gating
+    Hybrid retrieval
+    Cross-encoder reranking
 """
 
 from unittest.mock import MagicMock
@@ -46,9 +49,16 @@ def create_service():
     bm25_index = MagicMock()
     vector_retriever = MagicMock()
     reranker = MagicMock()
+    confidence_gate = MagicMock()
 
     # The BM25 index exposes its underlying retriever.
     bm25_index.retriever = MagicMock()
+
+    # Vector retrieval returns the initial semantic candidates.
+    vector_results = [
+        create_result("chunk-001"),
+        create_result("chunk-002"),
+    ]
 
     # Hybrid retrieval returns candidate documents.
     candidates = [
@@ -61,15 +71,23 @@ def create_service():
         create_result("chunk-001"),
     ]
 
+    vector_retriever.retrieve.return_value = vector_results
+    confidence_gate.is_confident.return_value = True
+
+    service = RetrievalService(
+        bm25_index=bm25_index,
+        vector_retriever=vector_retriever,
+        reranker=reranker,
+        confidence_gate=confidence_gate,
+    )
+
     return (
-        RetrievalService(
-            bm25_index=bm25_index,
-            vector_retriever=vector_retriever,
-            reranker=reranker,
-        ),
+        service,
         bm25_index,
         vector_retriever,
         reranker,
+        confidence_gate,
+        vector_results,
         candidates,
         final_results,
     )
@@ -77,16 +95,22 @@ def create_service():
 
 def test_search_delegates_to_retrieval_pipeline():
     """
-    The service should delegate retrieval to the configured
-    hybrid retriever and then pass the candidates to the
-    reranker.
+    The service should:
+
+        1. Perform vector retrieval.
+        2. Check vector confidence.
+        3. Perform hybrid retrieval.
+        4. Pass hybrid candidates to the reranker.
+        5. Return reranked results.
     """
 
     (
         service,
         _,
-        _,
+        vector_retriever,
         reranker,
+        confidence_gate,
+        vector_results,
         candidates,
         final_results,
     ) = create_service()
@@ -96,7 +120,6 @@ def test_search_delegates_to_retrieval_pipeline():
     service.hybrid_retriever = MagicMock()
 
     service.hybrid_retriever.retrieve.return_value = candidates
-
     reranker.rerank.return_value = final_results
 
     results = service.search(
@@ -104,11 +127,24 @@ def test_search_delegates_to_retrieval_pipeline():
         limit=1,
     )
 
-    # Verify hybrid retrieval was called.
+    # Verify vector retrieval was called first.
+    vector_retriever.retrieve.assert_called_once_with(
+        query="What is Python?",
+        limit=20,
+    )
+
+    # Verify the confidence gate received vector results.
+    confidence_gate.is_confident.assert_called_once_with(
+        vector_results,
+    )
+
+    # Verify hybrid retrieval was called only after
+    # the confidence check passed.
     service.hybrid_retriever.retrieve.assert_called_once_with(
         query="What is Python?",
         limit=20,
         candidate_limit=20,
+        vector_results=vector_results,
     )
 
     # Verify the candidates were passed to the reranker.
@@ -121,6 +157,54 @@ def test_search_delegates_to_retrieval_pipeline():
     assert results == final_results
 
 
+def test_search_abstains_when_vector_confidence_is_low():
+    """
+    The service should stop retrieval when the vector similarity
+    confidence gate rejects the query.
+    """
+
+    (
+        service,
+        _,
+        vector_retriever,
+        reranker,
+        confidence_gate,
+        vector_results,
+        _,
+        _,
+    ) = create_service()
+
+    # The confidence gate rejects the vector results.
+    confidence_gate.is_confident.return_value = False
+
+    service.hybrid_retriever = MagicMock()
+
+    results = service.search(
+        query="This query is outside the indexed corpus.",
+        limit=5,
+    )
+
+    # Vector retrieval should still happen because the gate
+    # needs its top result to evaluate confidence.
+    vector_retriever.retrieve.assert_called_once_with(
+        query="This query is outside the indexed corpus.",
+        limit=20,
+    )
+
+    confidence_gate.is_confident.assert_called_once_with(
+        vector_results,
+    )
+
+    # Low confidence means no hybrid retrieval.
+    service.hybrid_retriever.retrieve.assert_not_called()
+
+    # No reranking should happen either.
+    reranker.rerank.assert_not_called()
+
+    # The service abstains by returning no results.
+    assert results == []
+
+
 def test_retriever_errors_are_propagated():
     """
     Retrieval errors should not be silently swallowed.
@@ -129,11 +213,20 @@ def test_retriever_errors_are_propagated():
     API layer so they can be handled correctly.
     """
 
-    service, _, _, _, _, _ = create_service()
+    (
+        service,
+        _,
+        vector_retriever,
+        _,
+        _,
+        _,
+        _,
+        _,
+    ) = create_service()
 
-    service.hybrid_retriever = MagicMock()
-
-    service.hybrid_retriever.retrieve.side_effect = ValueError("Query cannot be empty.")
+    vector_retriever.retrieve.side_effect = ValueError(
+        "Query cannot be empty.",
+    )
 
     with pytest.raises(
         ValueError,

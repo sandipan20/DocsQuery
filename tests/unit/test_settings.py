@@ -37,8 +37,8 @@ def test_retrieval_configuration():
     # BM25 should return 20 candidates.
     assert settings.top_k_bm25 == 20
 
-    # Reranking should keep the top 5 candidates.
-    assert settings.top_k_rerank == 5
+    # Vector similarity confidence threshold.
+    assert settings.vector_confidence_threshold == 0.54
 
 
 def test_model_configuration():
@@ -52,3 +52,13 @@ def test_model_configuration():
     assert settings.embedding_model == "sentence-transformers/all-MiniLM-L6-v2"
 
     assert settings.reranker_model == "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+
+def test_default_app_environment():
+    """
+    Verify that local development uses the development environment.
+    """
+
+    settings = get_settings()
+
+    assert settings.app_env == "development"

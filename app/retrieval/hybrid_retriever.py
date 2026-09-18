@@ -69,6 +69,7 @@ class HybridRetriever:
         query: str,
         limit: int = 10,
         candidate_limit: int = 20,
+        vector_results: list[RetrievalResult] | None = None,
     ) -> list[RetrievalResult]:
         """
         Retrieve and fuse results from BM25 and vector search.
@@ -106,10 +107,11 @@ class HybridRetriever:
             limit=candidate_limit,
         )
 
-        vector_results = self.vector_retriever.retrieve(
-            query=query,
-            limit=candidate_limit,
-        )
+        if vector_results is None:
+            vector_results = self.vector_retriever.retrieve(
+                query=query,
+                limit=candidate_limit,
+            )
 
         # ----------------------------------------------------
         # Fuse the ranked lists using RRF.

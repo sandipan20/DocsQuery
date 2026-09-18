@@ -14,11 +14,13 @@ Validation flow:
           ↓
     Application configuration
           ↓
+    BM25 artifact
+          ↓
     Validation result
 
 The validator does not rebuild the index. It only checks whether
-the existing index metadata is consistent with the current source
-corpus and configuration.
+the existing index metadata and persisted retrieval artifacts are
+consistent with the current source corpus and configuration.
 """
 
 import argparse
@@ -41,7 +43,7 @@ def parse_args() -> argparse.Namespace:
     """
 
     parser = argparse.ArgumentParser(
-        description="Validate DocsQuery corpus and index metadata."
+        description="Validate DocsQuery corpus and retrieval index."
     )
 
     parser.add_argument(
@@ -96,8 +98,8 @@ def verify_index(
     rrf_k: int,
 ) -> None:
     """
-    Validate the corpus, manifest, index metadata, and
-    application configuration.
+    Validate the corpus, manifest, index metadata, application
+    configuration, and persisted BM25 artifact.
 
     Raises:
         RuntimeError:
@@ -224,12 +226,29 @@ def verify_index(
         )
 
     # --------------------------------------------------------
+    # Stage 9:
+    # Verify persisted BM25 artifact.
+    # --------------------------------------------------------
+
+    bm25_storage_path = Path(settings.bm25_index_path)
+
+    if not bm25_storage_path.is_file():
+        raise RuntimeError(
+            "BM25 storage file does not exist or is not a regular file: "
+            f"{bm25_storage_path}"
+        )
+
+    if bm25_storage_path.stat().st_size == 0:
+        raise RuntimeError(f"BM25 storage file is empty: {bm25_storage_path}")
+
+    # --------------------------------------------------------
     # All checks passed.
     # --------------------------------------------------------
 
     print("=" * 70)
     print("DocsQuery Index Validation")
     print("=" * 70)
+
     print("Status:             VALID")
     print(f"Corpus SHA-256:     {manifest.corpus_sha256}")
     print(f"Documents:          {metadata.document_count}")
@@ -240,6 +259,7 @@ def verify_index(
     print(f"Reranker model:     {metadata.reranker_model}")
     print(f"RRF k:              {metadata.rrf_k}")
     print(f"Qdrant collection:  {metadata.qdrant_collection}")
+    print(f"BM25 artifact:      {bm25_storage_path}")
     print("=" * 70)
 
 

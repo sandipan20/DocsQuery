@@ -10,6 +10,7 @@ throughout the codebase.
 """
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -30,9 +31,8 @@ class Settings(BaseSettings):
     # --------------------------------------------------------
 
     app_name: str = "DocsQuery"
-
     app_version: str = "0.1.0"
-
+    app_env: Literal["development", "production"] = "development"
     debug: bool = False
 
     # --------------------------------------------------------
@@ -40,25 +40,15 @@ class Settings(BaseSettings):
     # --------------------------------------------------------
 
     gemini_api_key: str = ""
-
     gemini_model: str = "gemini-3.1-flash-lite"
-
     gemini_temperature: float = 0.0
-
     gemini_max_tokens: int = 1000
-
-    # --------------------------------------------------------
-    # Qdrant configuration
-    # --------------------------------------------------------
-
-    qdrant_api_key: str = ""
 
     # --------------------------------------------------------
     # Model configuration
     # --------------------------------------------------------
 
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
-
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
     # --------------------------------------------------------
@@ -66,59 +56,32 @@ class Settings(BaseSettings):
     # --------------------------------------------------------
 
     top_k_dense: int = 20
-
     top_k_bm25: int = 20
+    reranker_top_k: int = 5
 
-    top_k_rerank: int = 5
+    # Minimum cosine similarity of the strongest vector result
+    # required before the query is considered related to the corpus.
+    vector_confidence_threshold: float = 0.54
 
-    # --------------------------------------------------------
-    # Pydantic Settings configuration
-    # --------------------------------------------------------
-
-    model_config = SettingsConfigDict(
-        # Read configuration from the .env file.
-        env_file=".env",
-        # Ignore environment variables that are not defined
-        # as fields in this Settings class.
-        extra="ignore",
-        # Environment variable names are case-insensitive.
-        case_sensitive=False,
-    )
     # --------------------------------------------------------
     # Qdrant configuration
     # --------------------------------------------------------
 
-    # Qdrant URL.
-    #
     # Local development:
-    #   http://localhost:6333
+    #     http://localhost:6333
     #
     # Docker Compose overrides this with:
-    #   http://qdrant:6333
+    #     http://qdrant:6333
     qdrant_url: str = "http://localhost:6333"
 
-    # Collection where document chunks are stored.
     qdrant_collection: str = "docsquery_chunks"
-
-    # API key is optional for the current local deployment.
     qdrant_api_key: str = ""
+
     # --------------------------------------------------------
     # BM25 configuration
     # --------------------------------------------------------
 
     bm25_index_path: str = "data/index/bm25.json"
-
-    # --------------------------------------------------------
-    # Reranker configuration
-    # --------------------------------------------------------
-
-    reranker_top_k: int = 5
-
-    # --------------------------------------------------------
-    # RAG retrieval thresholds
-    # --------------------------------------------------------
-
-    retrieval_min_score: float = 0.0
 
     # --------------------------------------------------------
     # API configuration
@@ -128,6 +91,16 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:5173",
     ]
+
+    # --------------------------------------------------------
+    # Pydantic Settings configuration
+    # --------------------------------------------------------
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+        case_sensitive=False,
+    )
 
 
 @lru_cache

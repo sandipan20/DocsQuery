@@ -1,258 +1,157 @@
-
 # syntax=docker/dockerfile:1
-
-# ============================================================
-# DocsQuery Production Image
-#
-# Architecture:
-#
-#   Builder
-#       ↓
-#   CPU-only PyTorch
-#       ↓
-#   Runtime Python dependencies
-#       ↓
-#   DocsQuery application
-#       ↓
-#   Minimal runtime image
-#
-# The production API uses:
-#   - Sentence Transformers
-#   - Transformers
-#   - PyTorch
-#   - Qdrant client
-#   - FastAPI
-#   - Gemini SDK
-#
-# PyTorch is installed explicitly from the official CPU wheel
-# index so Docker does not pull CUDA/NVIDIA packages.
-# ============================================================
-
 
 # ============================================================
 # Stage 1: Builder
 # ============================================================
-
 FROM python:3.12-slim AS builder
 
-WORKDIR /build
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH" \
+    HF_HOME=/opt/huggingface \
+    HF_HUB_CACHE=/opt/huggingface/hub \
+    SENTENCE_TRANSFORMERS_HOME=/opt/huggingface/sentence-transformers
 
-# ------------------------------------------------------------
-# Native build tools
-#
-# Some Python packages may require compilation during
-# installation.
-# ------------------------------------------------------------
+WORKDIR /app
+
+# Build dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
+        ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# ------------------------------------------------------------
-# Create isolated Python environment.
-# ------------------------------------------------------------
-RUN python -m venv /venv
+# Python virtual environment
+RUN python -m venv "${VIRTUAL_ENV}" \
+    && pip install --upgrade pip setuptools wheel
 
-ENV PATH="/venv/bin:$PATH"
-
-# ------------------------------------------------------------
-# Upgrade packaging tools.
-# ------------------------------------------------------------
-RUN python -m pip install --upgrade \
-    pip \
-    setuptools \
-    wheel
-
-
-# ============================================================
-# PyTorch
-# ============================================================
-
-# ------------------------------------------------------------
-# Install CPU-only PyTorch.
+# Install Python dependencies
 #
-# This is intentionally installed before the other packages.
-#
-# The CPU wheel index prevents pip from selecting a CUDA/NVIDIA
-# PyTorch distribution.
-# ------------------------------------------------------------
-RUN pip install \
-    --no-cache-dir \
-    --index-url https://download.pytorch.org/whl/cpu \
-    "torch>=2.0,<3.0"
-
-
-# ============================================================
-# DocsQuery Runtime Dependencies
-# ============================================================
-
-# ------------------------------------------------------------
-# Copy project metadata.
-#
-# This layer changes only when project dependency metadata
-# changes.
-# ------------------------------------------------------------
-COPY pyproject.toml ./
-
-# ------------------------------------------------------------
-# Install runtime dependencies explicitly.
-#
-# We intentionally do NOT run:
-#
-#     pip install .
-#
-# at this point because that would make pip resolve the complete
-# dependency graph again.
-#
-# Torch is already installed above.
-# ------------------------------------------------------------
-RUN pip install \
-    --no-cache-dir \
-    --prefer-binary \
-    "fastapi>=0.115,<1.0" \
-    "uvicorn[standard]>=0.30,<1.0" \
-    "pydantic>=2.0,<3.0" \
-    "pydantic-settings>=2.0,<3.0" \
-    "python-dotenv>=1.0,<2.0" \
-    "pyyaml>=6.0,<7.0" \
-    "pypdf>=5.0,<7.0" \
-    "rank-bm25>=0.2,<1.0" \
-    "sentence-transformers>=3.0,<6.0" \
-    "transformers>=4.0,<6.0" \
-    "qdrant-client>=1.12,<2.0" \
-    "google-genai>=1.0,<2.0" \
-    "httpx>=0.27,<1.0"
-
-
-# ============================================================
-# Application
-# ============================================================
-
-# ------------------------------------------------------------
-# Copy source code.
-# ------------------------------------------------------------
+# pyproject.toml is the single source of truth for DocsQuery
+# production dependencies.
+COPY pyproject.toml README.md ./
 COPY app ./app
 COPY scripts ./scripts
 
-# ------------------------------------------------------------
-# Install DocsQuery itself WITHOUT installing dependencies.
-#
-# All runtime dependencies have already been installed above.
-# ------------------------------------------------------------
+# Production BM25 retrieval artifact
+COPY data/index ./data/index
+
+# CPU-only PyTorch
 RUN pip install \
-    --no-cache-dir \
-    --no-deps \
-    .
+        --index-url https://download.pytorch.org/whl/cpu \
+        torch
 
+# Install DocsQuery and its production dependencies
+RUN pip install .
 
 # ============================================================
-# Build-time verification
+# Download ML models during image build
 # ============================================================
+RUN python - <<'PY'
+from sentence_transformers import SentenceTransformer, CrossEncoder
 
-# ------------------------------------------------------------
-# Verify that the main runtime packages can be imported.
-#
-# qdrant-client does not reliably expose a __version__
-# attribute, so we only verify that the module imports.
-# ------------------------------------------------------------
-RUN python -c "\
-import torch; \
-import transformers; \
-import sentence_transformers; \
-import fastapi; \
-import qdrant_client; \
-import google.genai; \
-print('Torch:', torch.__version__); \
-print('Transformers:', transformers.__version__); \
-print('Sentence Transformers:', sentence_transformers.__version__); \
-print('FastAPI:', fastapi.__version__); \
-print('Qdrant Client: import OK'); \
-print('Google GenAI SDK:', google.genai.__version__) \
-"
+embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
+reranker_model = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+print(f"Loading embedding model: {embedding_model}")
+embedding = SentenceTransformer(embedding_model)
+
+print(
+    "Embedding dimension:",
+    embedding.get_sentence_embedding_dimension(),
+)
+
+print(f"Loading reranker model: {reranker_model}")
+CrossEncoder(reranker_model)
+
+print("ML models successfully cached.")
+PY
+
+# ============================================================
+# Verify models work completely offline
+# ============================================================
+RUN HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 python - <<'PY'
+from sentence_transformers import SentenceTransformer, CrossEncoder
+
+embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
+reranker_model = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+embedding = SentenceTransformer(embedding_model)
+CrossEncoder(reranker_model)
+
+print("Offline embedding model load: OK")
+print(
+    "Embedding dimension:",
+    embedding.get_sentence_embedding_dimension(),
+)
+print("Offline reranker model load: OK")
+print("Offline model verification: OK")
+PY
 
 
 # ============================================================
 # Stage 2: Runtime
 # ============================================================
-
 FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH" \
+    HF_HOME=/opt/huggingface \
+    HF_HUB_CACHE=/opt/huggingface/hub \
+    SENTENCE_TRANSFORMERS_HOME=/opt/huggingface/sentence-transformers \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1
 
 WORKDIR /app
 
-# ------------------------------------------------------------
-# Python runtime configuration.
-# ------------------------------------------------------------
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PATH="/venv/bin:$PATH"
+# Runtime certificate support
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# ------------------------------------------------------------
-# Copy the prepared virtual environment from the builder.
-# ------------------------------------------------------------
-COPY --from=builder /venv /venv
+# Python environment
+COPY --from=builder /opt/venv /opt/venv
 
-# ------------------------------------------------------------
-# Copy only the application source needed at runtime.
-#
-# We intentionally do not copy:
-#   - tests
-#   - raw PDFs
-#   - local evaluation artifacts
-#   - .env
-#   - .git
-# ------------------------------------------------------------
-COPY --from=builder /build/app ./app
+# Baked Hugging Face model cache
+COPY --from=builder /opt/huggingface /opt/huggingface
 
-# ------------------------------------------------------------
-# Create a dedicated non-root user.
-# ------------------------------------------------------------
-RUN groupadd --system docsquery \
-    && useradd \
-        --system \
-        --gid docsquery \
+# Application
+COPY --from=builder /app/app ./app
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/pyproject.toml ./
+
+# Immutable BM25 retrieval artifact
+COPY --from=builder /app/data/index ./data/index
+
+RUN test -s /app/data/index/bm25.json \
+    && echo "BM25 artifact present: OK" \
+    || (echo "BM25 artifact missing or empty" && exit 1)
+
+
+# Non-root runtime user
+RUN useradd \
         --create-home \
-        --home-dir /home/docsquery \
-        docsquery
+        --shell /usr/sbin/nologin \
+        --uid 10001 \
+        docsquery \
+    && mkdir -p /app/data \
+    && chown -R docsquery:docsquery /app /opt/huggingface
 
-# ------------------------------------------------------------
-# Create runtime data directory and assign ownership.
-# ------------------------------------------------------------
-RUN mkdir -p /app/data \
-    && chown -R docsquery:docsquery \
-        /app \
-        /home/docsquery
-
-# Never run the API as root.
 USER docsquery
 
+# Container healthcheck
+HEALTHCHECK --interval=30s \
+            --timeout=10s \
+            --start-period=30s \
+            --retries=3 \
+    CMD python -c \
+        "import os, urllib.request; port=os.getenv('PORT', '8000'); urllib.request.urlopen(f'http://127.0.0.1:{port}/health').read()"
 EXPOSE 8000
 
-
-# ============================================================
-# Container Healthcheck
-# ============================================================
-
-HEALTHCHECK \
-    --interval=30s \
-    --timeout=5s \
-    --start-period=60s \
-    --retries=3 \
-    CMD python -c "\
-import urllib.request; \
-urllib.request.urlopen( \
-    'http://127.0.0.1:8000/health', \
-    timeout=3 \
-)"
-
-
-# ============================================================
-# Application Startup
-# ============================================================
-
-# One worker for now.
-#
-# Sentence Transformers and the CrossEncoder load ML models
-# into process memory, so multiple workers would multiply the
-# memory footprint.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
-
+# FastAPI application
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

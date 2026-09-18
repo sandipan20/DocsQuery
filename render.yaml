@@ -1,0 +1,68 @@
+services:
+  - type: web
+    name: docsquery-api
+    runtime: docker
+    region: frankfurt
+    plan: 1c-2g
+
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+
+    healthCheckPath: /health
+
+    envVars:
+      - key: APP_ENV
+        value: production
+
+      - key: APP_NAME
+        value: DocsQuery
+
+      - key: APP_VERSION
+        value: 0.1.0
+
+      - key: DEBUG
+        value: "false"
+
+      - key: GEMINI_API_KEY
+        sync: false
+
+      - key: GEMINI_MODEL
+        value: gemini-3.1-flash-lite
+
+      - key: GEMINI_TEMPERATURE
+        value: "0.0"
+
+      - key: GEMINI_MAX_TOKENS
+        value: "1000"
+
+      - key: QDRANT_URL
+        value: https://a09f0871-bc56-4611-b6c4-e8f345aa0068.eu-central-1-0.aws.cloud.qdrant.io
+
+      - key: QDRANT_API_KEY
+        sync: false
+
+      - key: QDRANT_COLLECTION
+        value: docsquery_chunks
+
+      - key: EMBEDDING_MODEL
+        value: sentence-transformers/all-MiniLM-L6-v2
+
+      - key: RERANKER_MODEL
+        value: cross-encoder/ms-marco-MiniLM-L-6-v2
+
+      - key: TOP_K_DENSE
+        value: "20"
+
+      - key: TOP_K_BM25
+        value: "20"
+
+      - key: RERANKER_TOP_K
+        value: "5"
+
+      - key: VECTOR_CONFIDENCE_THRESHOLD
+        value: "0.54"
+
+      # No browser frontend yet.
+      # Replace this when the frontend is deployed.
+      - key: API_CORS_ORIGINS
+        value: "[]"

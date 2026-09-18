@@ -17,12 +17,24 @@ Architecture:
 """
 
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 
 from app.generation.prompts import (
     SYSTEM_PROMPT,
     build_user_prompt,
 )
+
+
+class LLMServiceError(RuntimeError):
+    """
+    Base exception for expected Gemini service failures.
+    """
+
+
+class LLMServiceUnavailableError(LLMServiceError):
+    """
+    Raised when Gemini is temporarily unavailable.
+    """
 
 
 class LLMService:
@@ -71,6 +83,13 @@ class LLMService:
 
         Returns:
             Generated answer.
+
+        Raises:
+            LLMServiceUnavailableError:
+                If Gemini is temporarily unavailable.
+
+            LLMServiceError:
+                If Gemini returns an unexpected API failure.
         """
 
         if not query.strip():
@@ -80,21 +99,37 @@ class LLMService:
             raise ValueError("Context cannot be empty.")
 
         # Send the question and retrieved evidence to Gemini.
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents=build_user_prompt(
-                query=query,
-                context=context,
-            ),
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                temperature=self.temperature,
-                max_output_tokens=self.max_tokens,
-            ),
-        )
+        try:
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=build_user_prompt(
+                    query=query,
+                    context=context,
+                ),
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    temperature=self.temperature,
+                    max_output_tokens=self.max_tokens,
+                ),
+            )
+
+        except errors.ServerError as exc:
+            # Gemini currently reports temporary service-side
+            # failures such as HTTP 503 through ServerError.
+            raise LLMServiceUnavailableError(
+                "The language model is temporarily unavailable. Please try again later."
+            ) from exc
+
+        except errors.APIError as exc:
+            # Convert other Gemini API failures into an
+            # application-specific exception instead of
+            # leaking provider exceptions through the API.
+            raise LLMServiceError(
+                "The language model service failed to generate a response."
+            ) from exc
 
         # Gemini should always return text for this use case.
         if not response.text:
-            raise RuntimeError("Gemini returned an empty response.")
+            raise LLMServiceError("Gemini returned an empty response.")
 
         return response.text.strip()

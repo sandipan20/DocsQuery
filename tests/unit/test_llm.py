@@ -5,8 +5,13 @@ Unit tests for the Gemini LLM service.
 from unittest.mock import MagicMock
 
 import pytest
+from google.genai import errors
 
-from app.generation.llm import LLMService
+from app.generation.llm import (
+    LLMService,
+    LLMServiceError,
+    LLMServiceUnavailableError,
+)
 
 
 def create_service():
@@ -95,4 +100,56 @@ def test_empty_gemini_response_raises_error():
         service.generate(
             query="What is Python?",
             context="[C1] Python is a language.",
+        )
+
+
+def test_gemini_server_error_becomes_unavailable_error():
+    """
+    Temporary Gemini server failures should become a
+    provider-independent unavailable exception.
+    """
+
+    service = create_service()
+
+    service.client.models.generate_content.side_effect = errors.ServerError(
+        503,
+        {
+            "error": {
+                "code": 503,
+                "message": "Service unavailable",
+                "status": "UNAVAILABLE",
+            }
+        },
+    )
+
+    with pytest.raises(LLMServiceUnavailableError):
+        service.generate(
+            query="What is Python?",
+            context="[C1] Python is a programming language.",
+        )
+
+
+def test_gemini_api_error_becomes_llm_service_error():
+    """
+    Other Gemini API failures should become a generic
+    application-level LLM exception.
+    """
+
+    service = create_service()
+
+    service.client.models.generate_content.side_effect = errors.APIError(
+        400,
+        {
+            "error": {
+                "code": 400,
+                "message": "Invalid request",
+                "status": "INVALID_ARGUMENT",
+            }
+        },
+    )
+
+    with pytest.raises(LLMServiceError):
+        service.generate(
+            query="What is Python?",
+            context="[C1] Python is a programming language.",
         )

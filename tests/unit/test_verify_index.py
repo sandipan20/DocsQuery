@@ -59,7 +59,7 @@ def create_metadata(
     save_index_metadata(metadata, metadata_path)
 
 
-def patch_settings(monkeypatch):
+def patch_settings(monkeypatch, bm25_index_path="bm25.json"):
     """
     Provide deterministic application settings for tests.
     """
@@ -73,6 +73,7 @@ def patch_settings(monkeypatch):
                 "embedding_model": "embedding-model",
                 "reranker_model": "reranker-model",
                 "qdrant_collection": "docsquery_chunks",
+                "bm25_index_path": bm25_index_path,
             },
         )(),
     )
@@ -93,7 +94,13 @@ def test_valid_index_passes(tmp_path, monkeypatch):
         metadata_path,
     )
 
-    patch_settings(monkeypatch)
+    bm25_path = tmp_path / "bm25.json"
+    bm25_path.write_text("{}")
+
+    patch_settings(
+        monkeypatch,
+        bm25_index_path=str(bm25_path),
+    )
 
     verify_index(
         corpus_root=str(corpus_root),
@@ -232,4 +239,86 @@ def test_wrong_rrf_value_fails(tmp_path, monkeypatch):
             chunk_size=500,
             chunk_overlap=50,
             rrf_k=100,
+        )
+
+
+def test_missing_bm25_artifact_fails(tmp_path, monkeypatch):
+    """
+    Validation should fail when the persisted BM25 artifact
+    referenced by the application configuration is missing.
+    """
+
+    corpus_root = tmp_path / "corpus"
+    corpus_root.mkdir()
+
+    create_corpus(corpus_root)
+
+    manifest_path = tmp_path / "manifest.json"
+    metadata_path = tmp_path / "metadata.json"
+
+    create_metadata(
+        corpus_root,
+        manifest_path,
+        metadata_path,
+    )
+
+    missing_bm25_path = tmp_path / "missing-bm25.json"
+
+    patch_settings(
+        monkeypatch,
+        bm25_index_path=str(missing_bm25_path),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="BM25 storage file does not exist",
+    ):
+        verify_index(
+            corpus_root=str(corpus_root),
+            manifest_path=str(manifest_path),
+            metadata_path=str(metadata_path),
+            chunk_size=500,
+            chunk_overlap=50,
+            rrf_k=60,
+        )
+
+
+def test_empty_bm25_artifact_fails(tmp_path, monkeypatch):
+    """
+    Validation should fail when the BM25 artifact exists but is empty.
+    """
+
+    corpus_root = tmp_path / "corpus"
+    corpus_root.mkdir()
+
+    create_corpus(corpus_root)
+
+    manifest_path = tmp_path / "manifest.json"
+    metadata_path = tmp_path / "metadata.json"
+
+    create_metadata(
+        corpus_root,
+        manifest_path,
+        metadata_path,
+    )
+
+    bm25_path = tmp_path / "bm25.json"
+    bm25_path.write_text("")
+
+    patch_settings(
+        monkeypatch,
+        bm25_index_path=str(bm25_path),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="BM25 storage file is empty",
+    ):
+        verify_index(
+            corpus_root=str(corpus_root),
+            manifest_path=str(manifest_path),
+            metadata_path=str(metadata_path),
+            chunk_size=500,
+            chunk_overlap=50,
+            rrf_k=60,
         )

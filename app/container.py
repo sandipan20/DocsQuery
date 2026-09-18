@@ -11,28 +11,22 @@ Current dependencies:
     BM25
     Vector Retriever
     Cross-Encoder Reranker
+    Retrieval Confidence Gate
     Gemini LLM
     Retrieval Service
 """
 
 from app.config.settings import get_settings
-from app.generation.citation_validator import (
-    CitationValidator,
-)
-from app.generation.context_builder import (
-    ContextBuilder,
-)
+from app.generation.citation_validator import CitationValidator
+from app.generation.context_builder import ContextBuilder
 from app.generation.llm import LLMService
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.bm25_storage import BM25Storage
+from app.retrieval.confidence import RetrievalConfidenceGate
 from app.retrieval.reranker import CrossEncoderReranker
 from app.retrieval.vector_retriever import VectorRetriever
-from app.services.generation_service import (
-    GenerationService,
-)
-from app.services.health_service import (
-    HealthService,
-)
+from app.services.generation_service import GenerationService
+from app.services.health_service import HealthService
 from app.services.rag_service import RAGService
 from app.services.retrieval_service import RetrievalService
 
@@ -59,7 +53,9 @@ class AppContainer:
 
         bm25_storage = BM25Storage(settings.bm25_index_path)
 
-        self.bm25_index = BM25Index(storage=bm25_storage)
+        self.bm25_index = BM25Index(
+            storage=bm25_storage,
+        )
 
         # ----------------------------------------------------
         # Vector retrieval
@@ -73,7 +69,20 @@ class AppContainer:
 
         # The reranker model is loaded once when the
         # application starts.
-        self.reranker = CrossEncoderReranker(model_name=settings.reranker_model)
+        self.reranker = CrossEncoderReranker(
+            model_name=settings.reranker_model,
+        )
+
+        # ----------------------------------------------------
+        # Retrieval confidence gate
+        # ----------------------------------------------------
+
+        # The confidence gate prevents low-confidence
+        # semantic matches from entering the expensive
+        # hybrid + reranking pipeline.
+        self.confidence_gate = RetrievalConfidenceGate(
+            vector_threshold=settings.vector_confidence_threshold,
+        )
 
         # ----------------------------------------------------
         # Gemini LLM
@@ -98,7 +107,8 @@ class AppContainer:
             bm25_index=self.bm25_index,
             vector_retriever=self.vector_retriever,
             reranker=self.reranker,
-            candidate_limit=20,
+            confidence_gate=self.confidence_gate,
+            candidate_limit=settings.top_k_dense,
             top_k=settings.reranker_top_k,
         )
 
@@ -108,16 +118,28 @@ class AppContainer:
 
         self.bm25_loaded = False
 
+        # ----------------------------------------------------
+        # Generation service
+        # ----------------------------------------------------
+
         self.generation_service = GenerationService(
             llm_service=self.llm,
             context_builder=ContextBuilder(),
             citation_validator=CitationValidator(),
         )
 
+        # ----------------------------------------------------
+        # RAG service
+        # ----------------------------------------------------
+
         self.rag_service = RAGService(
             retrieval_service=self.retrieval_service,
             generation_service=self.generation_service,
         )
+
+        # ----------------------------------------------------
+        # Health service
+        # ----------------------------------------------------
 
         self.health_service = HealthService(self)
 

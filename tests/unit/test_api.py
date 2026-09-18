@@ -130,3 +130,86 @@ def test_search_rejects_invalid_limit():
         )
 
     assert response.status_code == 422
+
+
+def test_ready_endpoint_returns_ready_when_dependencies_are_healthy():
+    """
+    The readiness endpoint should return 200 when all required
+    application dependencies are healthy.
+    """
+
+    app = create_test_app()
+
+    with TestClient(app) as client:
+        app.state.container.health_service.check = lambda: {
+            "bm25": True,
+            "qdrant": True,
+        }
+
+        response = client.get("/ready")
+
+    assert response.status_code == 200
+
+    assert response.json() == {
+        "status": "ready",
+        "dependencies": {
+            "bm25": True,
+            "qdrant": True,
+        },
+    }
+
+
+def test_ready_endpoint_returns_503_when_bm25_is_unavailable():
+    """
+    The readiness endpoint should return 503 when BM25 is unavailable.
+    """
+
+    app = create_test_app()
+
+    with TestClient(app) as client:
+        app.state.container.health_service.check = lambda: {
+            "bm25": False,
+            "qdrant": True,
+        }
+
+        response = client.get("/ready")
+
+    assert response.status_code == 503
+
+    assert response.json() == {
+        "detail": {
+            "status": "not_ready",
+            "dependencies": {
+                "bm25": False,
+                "qdrant": True,
+            },
+        }
+    }
+
+
+def test_ready_endpoint_returns_503_when_qdrant_is_unavailable():
+    """
+    The readiness endpoint should return 503 when Qdrant is unavailable.
+    """
+
+    app = create_test_app()
+
+    with TestClient(app) as client:
+        app.state.container.health_service.check = lambda: {
+            "bm25": True,
+            "qdrant": False,
+        }
+
+        response = client.get("/ready")
+
+    assert response.status_code == 503
+
+    assert response.json() == {
+        "detail": {
+            "status": "not_ready",
+            "dependencies": {
+                "bm25": True,
+                "qdrant": False,
+            },
+        }
+    }

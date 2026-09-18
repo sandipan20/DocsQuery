@@ -1216,19 +1216,20 @@ Unit tests should not call the live Gemini API.
 Run the entire test suite:
 
 ```bash
-pytest -v
+python -m pytest -v
 ```
 
 Run unit tests:
 
 ```bash
-pytest tests/unit -v
+python -m pytest tests/unit -v
+
 ```
 
 Run integration tests:
 
 ```bash
-pytest tests/integration -v
+python -m pytest tests/integration -v
 ```
 
 ---

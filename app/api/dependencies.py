@@ -10,6 +10,7 @@ The retrieval service contains:
     Qdrant
     Hybrid RRF
     Cross-Encoder Reranking
+    Retrieval Confidence Gate
 
 The retrieval service is created once and cached so that expensive
 components such as embedding and reranking models are not recreated
@@ -21,6 +22,7 @@ from functools import lru_cache
 from app.config.settings import get_settings
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.bm25_storage import BM25Storage
+from app.retrieval.confidence import RetrievalConfidenceGate
 from app.retrieval.reranker import CrossEncoderReranker
 from app.retrieval.vector_retriever import VectorRetriever
 from app.services.retrieval_service import RetrievalService
@@ -40,6 +42,14 @@ def get_retrieval_service() -> RetrievalService:
     """
 
     settings = get_settings()
+
+    # --------------------------------------------------------
+    # Retrieval confidence gate
+    # --------------------------------------------------------
+
+    confidence_gate = RetrievalConfidenceGate(
+        vector_threshold=settings.vector_confidence_threshold,
+    )
 
     # --------------------------------------------------------
     # BM25
@@ -79,6 +89,7 @@ def get_retrieval_service() -> RetrievalService:
         bm25_index=bm25_index,
         vector_retriever=vector_retriever,
         reranker=reranker,
+        confidence_gate=confidence_gate,
         candidate_limit=settings.top_k_dense,
         top_k=settings.reranker_top_k,
     )
