@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # --------------------------------------------------------
 
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.1-flash-lite"
+    gemini_model: str = "gemini-3.5-flash-lite"
     gemini_temperature: float = 0.0
     gemini_max_tokens: int = 1000
 
