@@ -199,6 +199,27 @@ def create_app() -> FastAPI:
             StaticFiles(directory=str(frontend_dist), html=True),
             name="static",
         )
+    else:
+        from fastapi.responses import HTMLResponse
+
+        @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+        def root():
+            return (
+                "<!DOCTYPE html><html><head><title>DocsQuery API</title></head>"
+                "<body style='font-family:system-ui,sans-serif;text-align:center;"
+                "padding:60px 20px;background:#07090e;color:#00f0ff;'>"
+                "<h1>DocsQuery API Engine Online</h1>"
+                "<p style='color:#94a3b8;font-size:16px;'>"
+                "This is the backend API service. "
+                "Open your deployed frontend application or API docs below:</p>"
+                "<p style='margin-top:24px;'>"
+                "<a href='/docs' style='color:#00f0ff;margin-right:20px;'>"
+                "API Documentation (/docs)</a>"
+                "<a href='https://docsquery-frontend.onrender.com' "
+                "style='color:#00ff88;font-weight:bold;'>"
+                "Open DocsQuery Frontend &rarr;</a>"
+                "</p></body></html>"
+            )
 
     return app
 

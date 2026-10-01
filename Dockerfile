@@ -1,7 +1,15 @@
-# syntax=docker/dockerfile:1
+# ============================================================
+# Stage 1: Frontend Builder
+# ============================================================
+FROM node:20-slim AS frontend-builder
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
 
 # ============================================================
-# Stage 1: Builder
+# Stage 2: Python Dependencies Builder
 # ============================================================
 FROM python:3.12-slim AS builder
 
@@ -123,6 +131,7 @@ COPY --from=builder /opt/huggingface /opt/huggingface
 COPY --from=builder /app/app ./app
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/pyproject.toml ./
+COPY --from=frontend-builder /frontend/dist ./frontend/dist
 
 # Non-root runtime user
 RUN useradd \
