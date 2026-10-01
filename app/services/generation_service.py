@@ -15,6 +15,7 @@ Coordinates:
 """
 
 from app.generation.citation_validator import (
+    CitationValidationError,
     CitationValidator,
 )
 from app.generation.context_builder import (
@@ -91,13 +92,36 @@ class GenerationService:
         )
 
         # ----------------------------------------------------
-        # Validate citations.
+        # Validate citations with self-correction retry.
         # ----------------------------------------------------
 
-        self.citation_validator.validate(
-            answer=answer,
-            contexts=contexts,
-        )
+        try:
+            self.citation_validator.validate(
+                answer=answer,
+                contexts=contexts,
+            )
+        except CitationValidationError as exc:
+            valid_ids = ", ".join(f"[{c.citation_id}]" for c in contexts)
+            repair_context = (
+                f"{context_text}\n\n"
+                f"CORRECTION INSTRUCTION:\n"
+                f"Your previous answer draft failed citation validation:\n{exc}\n\n"
+                "Please rewrite the answer ensuring that EVERY SINGLE SENTENCE ends "
+                f"with at least one citation tag chosen strictly from {valid_ids}. "
+                "Do not write any sentence without a citation tag."
+            )
+            try:
+                repaired = self.llm_service.generate(
+                    query=query,
+                    context=repair_context,
+                )
+                self.citation_validator.validate(
+                    answer=repaired,
+                    contexts=contexts,
+                )
+                answer = repaired
+            except Exception:
+                raise exc
 
         citations = self.citation_validator.extract_citations(answer)
 

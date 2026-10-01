@@ -21,12 +21,15 @@ def test_qdrant_collection_can_be_created():
         collection_name=collection_name,
     )
 
-    store.create_collection(
-        vector_size=3,
-    )
+    try:
+        store.create_collection(
+            vector_size=3,
+        )
 
-    collections = store.client.get_collections()
+        collections = store.client.get_collections()
 
-    names = {collection.name for collection in collections.collections}
+        names = {collection.name for collection in collections.collections}
 
-    assert collection_name in names
+        assert collection_name in names
+    finally:
+        store.client.delete_collection(collection_name=collection_name)

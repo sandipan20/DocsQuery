@@ -9,9 +9,11 @@ Settings object instead of reading environment variables
 throughout the codebase.
 """
 
+import json
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,7 +42,7 @@ class Settings(BaseSettings):
     # --------------------------------------------------------
 
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_model: str = "gemini-3.1-flash-lite"
     gemini_temperature: float = 0.0
     gemini_max_tokens: int = 1000
 
@@ -91,6 +93,19 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:5173",
     ]
+
+    @field_validator("api_cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
 
     # --------------------------------------------------------
     # Pydantic Settings configuration

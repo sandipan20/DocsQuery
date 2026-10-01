@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
+from app.documents.models import DocumentInfo
 from app.generation.llm import (
     LLMServiceError,
     LLMServiceUnavailableError,
@@ -92,6 +93,65 @@ def test_query_returns_answer_and_citation():
     assert body["metrics"]["retrieval_latency_ms"] == 120.0
     assert body["metrics"]["generation_latency_ms"] == 500.0
     assert body["metrics"]["total_latency_ms"] == 620.0
+
+
+def test_query_uses_session_cookie_as_workspace_not_request_body():
+    app = create_app()
+
+    with TestClient(app) as client:
+        app.state.container.rag_service = MagicMock()
+        app.state.container.rag_service.query.side_effect = InsufficientEvidenceError(
+            "No relevant evidence was found."
+        )
+        client.cookies.set("docsquery_session", "session-a")
+
+        response = client.post(
+            "/api/v1/query",
+            json={
+                "query": "Private question",
+                "top_k": 5,
+                "workspace_id": "session-b",
+            },
+        )
+
+    assert response.status_code == 404
+    app.state.container.rag_service.query.assert_called_once_with(
+        query="Private question",
+        top_k=5,
+        workspace_id="session-a",
+        document_ids=None,
+    )
+
+
+def test_query_rejects_document_ids_not_owned_by_session():
+    app = create_app()
+
+    with TestClient(app) as client:
+        app.state.container.document_service = MagicMock()
+        app.state.container.document_service.list_documents.return_value = [
+            DocumentInfo(
+                document_id="owned-doc",
+                filename="owned.pdf",
+                page_count=1,
+                chunk_count=1,
+            )
+        ]
+        app.state.container.rag_service = MagicMock()
+        client.cookies.set("docsquery_session", "session-a")
+
+        response = client.post(
+            "/api/v1/query",
+            json={
+                "query": "Look for private evidence",
+                "document_ids": ["foreign-doc"],
+            },
+        )
+
+    assert response.status_code == 404
+    app.state.container.document_service.list_documents.assert_called_once_with(
+        "session-a"
+    )
+    app.state.container.rag_service.query.assert_not_called()
 
 
 def test_query_returns_404_when_evidence_is_missing():

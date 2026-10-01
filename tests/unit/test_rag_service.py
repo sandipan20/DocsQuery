@@ -99,6 +99,8 @@ def test_query_passes_top_k_to_retrieval():
     retrieval_service.search.assert_called_once_with(
         query="What is Python?",
         limit=3,
+        workspace_id="public",
+        document_ids=None,
     )
 
 

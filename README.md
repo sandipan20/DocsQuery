@@ -26,6 +26,8 @@ DocsQuery is designed to answer questions from a controlled document corpus whil
 * [Grounded Generation](#grounded-generation)
 * [Citation Validation](#citation-validation)
 * [API](#api)
+* [Anonymous Sessions and Documents](#anonymous-sessions-and-documents)
+* [Frontend](#frontend)
 * [Evaluation System](#evaluation-system)
 * [Retrieval Metrics](#retrieval-metrics)
 * [Answer Metrics](#answer-metrics)
@@ -773,6 +775,53 @@ answer
 
 The response also includes timing information.
 
+## Anonymous Sessions and Documents
+
+The browser initializes an anonymous session through `GET /api/v1/session`. The server creates a cryptographically random session identifier and stores it in the `docsquery_session` HTTP-only cookie. Production configuration sets the cookie's `Secure` flag; it uses `SameSite=Lax` and a 24-hour max age. The identifier is not returned in JSON.
+
+All document and query routes derive `workspace_id` from that cookie. A workspace ID supplied in a request body or multipart form is ignored. This is an anonymous bearer-cookie model, not user authentication: anyone who obtains a session cookie can act as that session, so HTTPS and protection against cookie theft remain important.
+
+Document operations:
+
+```http
+POST   /api/v1/documents       # multipart/form-data; repeat the "files" field
+GET    /api/v1/documents       # list only the current session's documents
+DELETE /api/v1/documents/{id}  # delete only when owned by the current session
+```
+
+Uploads accept up to 10 PDF files per request and 25 MiB per file. The backend checks the filename extension, PDF signature, parser validity, and extractable text before indexing. It reuses the existing `pypdf`, cleaner, chunker, embedding service, Qdrant store, and BM25 index. Document listings are reconstructed from workspace-filtered Qdrant payloads.
+
+Query requests can include `document_ids` to select one or more documents. Every ID is checked against the current session before retrieval. Omitting `document_ids` means all documents in the current session, never all Qdrant points. Both Qdrant and BM25 apply the workspace and optional document restriction before results enter hybrid fusion.
+
+Private Qdrant point IDs include both workspace and chunk ID. This prevents identical PDFs uploaded by different sessions from overwriting each other's points. Qdrant payload indexes are created for `workspace_id` and `document_id` when the application ensures the collection.
+
+## Frontend
+
+The React frontend is in `frontend/`. Run it locally with:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+The local Vite proxy forwards `/api`, `/health`, and `/ready` to the configured
+development API target. Production builds accept `VITE_API_URL`; the Render
+configuration deploys the frontend at `docsquery-frontend.onrender.com` and
+points it at `docsquery-api.onrender.com`.
+
+The React + TypeScript application is under `frontend/`. It initializes the session, supports multi-PDF upload, lists and deletes current-session documents, lets users query all documents or a checked subset, and displays answer citations with source filename and page. The API does not preload the benchmark corpus; it starts with an empty searchable workspace and indexes only uploaded session documents. PDFs in `data/raw/` are evaluation fixtures for offline corpus tests, not runtime seed documents.
+
+Run the frontend locally:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Vite proxies `/api`, `/health`, and `/ready` to the Modal backend configured in `frontend/vite.config.ts`. Production builds use `VITE_API_URL`; the Render blueprint provides a static frontend service and matching API CORS origin. The UI is not an authorization boundary.
+
 ---
 
 # Evaluation System
@@ -1068,22 +1117,31 @@ A template is provided:
 Important variables include:
 
 ```text
+APP_ENV=development
 GEMINI_API_KEY=
 GEMINI_MODEL=
 GEMINI_TEMPERATURE=
 GEMINI_MAX_TOKENS=
+QDRANT_URL=
+QDRANT_API_KEY=
+QDRANT_COLLECTION=
+API_CORS_ORIGINS=
 ```
 
 Example:
 
 ```env
 GEMINI_API_KEY=your_key_here
-GEMINI_MODEL=gemini-3.1-flash-lite
+GEMINI_MODEL=gemini-3.5-flash-lite
 GEMINI_TEMPERATURE=0
 GEMINI_MAX_TOKENS=1000
+QDRANT_URL=http://localhost:6333
+QDRANT_API_KEY=
+QDRANT_COLLECTION=docsquery_chunks
+API_CORS_ORIGINS=["http://localhost:5173","http://localhost:5174"]
 ```
 
-Secrets must never be committed to Git.
+`API_CORS_ORIGINS` is a JSON array. Copy `.env.example` to `.env` and add credentials locally. Secrets must never be committed to Git.
 
 ---
 
@@ -1114,6 +1172,34 @@ pip install -e .
 ## Install development dependencies
 
 Use the dependency configuration from `pyproject.toml`.
+
+## Run with Docker Compose
+
+After creating `.env` from `.env.example`, start the API and local Qdrant:
+
+```bash
+docker compose up --build
+```
+
+The API is available at `http://localhost:8000`; check `GET /health` and `GET /ready`. Compose stores local Qdrant data in the named `docsquery-qdrant-storage` volume and mounts the BM25 JSON directory from the repository. Runtime startup strips public benchmark chunks from that BM25 file while preserving session workspaces; the Docker image does not include the benchmark index. Do not use `docker compose down -v` unless you intend to delete the local Qdrant volume.
+
+## Qdrant Cloud
+
+For a managed collection, set `QDRANT_URL` and `QDRANT_API_KEY` through the deployment's environment/secret manager and set `QDRANT_COLLECTION` to the target collection. Keep the API key server-side. DocsQuery stores vectors and chunk payload metadata in Qdrant; the application creates the workspace and document payload indexes when it ensures the collection. Confirm existing collections have the required payload fields before operating on them.
+
+## Modal Backend Deployment
+
+The deployment adapter is `modal_app.py`. It references the Modal secret named `docsquery-production`; configure `GEMINI_API_KEY` and `QDRANT_API_KEY` in that secret, and keep non-secret settings in the adapter's environment mapping. With the Modal CLI installed and authenticated, deploy using:
+
+```bash
+modal deploy modal_app.py
+```
+
+After deployment, verify `/health` and `/ready`, then perform document API and session-isolation checks against that deployment. A successful deploy command alone does not verify the full document workflow.
+
+## Frontend Hosting
+
+The Render blueprint provides a static frontend service. Set `VITE_API_URL` to the deployed API origin for other hosts; `npm run dev` continues to use the Vite proxy for local development. The hosted deployment still requires Render credentials and live browser verification.
 
 ---
 
@@ -1390,21 +1476,9 @@ Expected application errors are converted into appropriate HTTP responses.
 
 # Security Considerations
 
-The production system should enforce:
+The backend enforces anonymous workspace isolation by deriving the workspace from the HTTP-only session cookie, filtering Qdrant and BM25 before ranking, verifying requested document IDs, and requiring both workspace and document ID in Qdrant deletion filters. The frontend never chooses the workspace. Upload validation, file limits, and document-list filtering are server-side.
 
-* secret management through environment variables or secret stores
-* CORS restrictions
-* request validation
-* payload size limits
-* PDF upload validation
-* rate limiting
-* authentication if deployed for non-public users
-* safe logging that does not expose secrets
-* safe exception handling
-* dependency updates
-* non-root container execution
-
-Security hardening is not yet considered complete.
+The session cookie is a bearer credential. This MVP does not include account authentication, revocation, rate limiting, or protection against a stolen cookie. Configure production origins narrowly, use HTTPS, and store Gemini/Qdrant credentials only in the configured secret store. Do not expose secret values in logs or browser code.
 
 ---
 
@@ -1442,29 +1516,29 @@ OCR is a future capability.
 
 ---
 
-## 5. BM25 persistence needs a production storage strategy
+## 5. BM25 persistence is filesystem-local
 
-Local:
+BM25 chunks are serialized to:
 
 ```text
 data/index/bm25.json
 ```
 
-is appropriate for development.
-
-A deployed multi-instance system needs a more durable shared-storage or rebuild strategy.
+This is suitable for local development and a single filesystem-backed process. Modal instances can be stateless or cold-started, so this file is not a durable distributed source of truth. Qdrant is the durable vector/document source; persistent distributed BM25 synchronization is future hardening.
 
 ---
 
-## 6. Qdrant persistence must be production-grade
+## 6. Production frontend deployment is configured but not live-verified
 
-Local development storage is not sufficient as the final deployment architecture.
-
-A managed or persistent Qdrant deployment should be used in production.
+The Render blueprint defines the static frontend, production API origin, and CORS origin. The deployment and full browser-to-production flow still require live verification.
 
 ---
 
-## 7. Live LLM evaluation costs API quota
+## 7. Qdrant credentials and live isolation require deployment verification
+
+The Modal adapter is configured to use Qdrant Cloud. This repository does not establish that the current live collection has every required payload index or that a two-session production upload/query/delete scenario has been run. Verify those conditions using the configured deployment without printing credentials.
+
+## 8. Live LLM evaluation costs API quota
 
 End-to-end answer evaluation uses Gemini and therefore should be managed carefully in CI.
 
@@ -1491,8 +1565,8 @@ Current development is organized approximately as follows:
 11.12 Docker
 11.13 Production storage
 11.14 Deployment
-11.15 Frontend
-11.16 Security hardening
+11.15 Frontend workflow and anonymous sessions
+11.16 Workspace/document isolation
 11.17 Monitoring/observability
 11.18 Final end-to-end validation
 11.19 Documentation and release cleanup
@@ -1560,7 +1634,7 @@ The architecture should account for:
 
 # Project Status
 
-DocsQuery currently has the core RAG pipeline implemented:
+DocsQuery has the core RAG pipeline and a locally implemented anonymous document workflow:
 
 ```text
 PDF ingestion
@@ -1608,9 +1682,11 @@ Docker
 Production deployment
       → next
 Frontend
-      → next
-Security hardening
-      → next
+      ✓ local upload/list/delete/query interface and production build; hosted deployment pending
+Session/document isolation
+      ✓ focused API and retrieval tests; live two-session acceptance test pending
+Document management API
+      ✓ local validation and ownership tests; live Modal verification pending
 Monitoring
       → next
 Final E2E validation

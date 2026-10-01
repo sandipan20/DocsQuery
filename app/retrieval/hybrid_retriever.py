@@ -24,6 +24,25 @@ Pipeline:
                 │
                 ▼
         Hybrid Results
+
+Workspace isolation:
+
+    User Session
+        │
+        ▼
+    workspace_id
+        │
+        ├───────────────┐
+        ▼               ▼
+      BM25           Vector
+        │               │
+        ▼               ▼
+  Only matching    Only matching
+   workspace        workspace
+        │               │
+        └───────┬───────┘
+                ▼
+              RRF
 """
 
 from app.retrieval.bm25_retriever import BM25Retriever
@@ -70,6 +89,8 @@ class HybridRetriever:
         limit: int = 10,
         candidate_limit: int = 20,
         vector_results: list[RetrievalResult] | None = None,
+        workspace_id: str = "public",
+        document_ids: list[str] | None = None,
     ) -> list[RetrievalResult]:
         """
         Retrieve and fuse results from BM25 and vector search.
@@ -85,8 +106,20 @@ class HybridRetriever:
                 Number of candidates retrieved from each
                 retrieval system before fusion.
 
+            vector_results:
+                Optional precomputed vector results.
+
+                When supplied, these results are used directly.
+                Otherwise vector retrieval is performed using
+                the requested workspace_id.
+
+            workspace_id:
+                Workspace whose documents are allowed to
+                participate in retrieval.
+
         Returns:
-            RRF-ranked hybrid results.
+            RRF-ranked hybrid results belonging to the
+            requested workspace.
         """
 
         if not query.strip():
@@ -98,19 +131,36 @@ class HybridRetriever:
         if candidate_limit <= 0:
             raise ValueError("candidate_limit must be greater than 0.")
 
+        if not workspace_id.strip():
+            raise ValueError("workspace_id cannot be empty.")
+
         # ----------------------------------------------------
-        # Retrieve candidates from both systems.
+        # Retrieve candidates from BM25.
+        #
+        # BM25Retriever performs the workspace filtering,
+        # so chunks from another workspace never enter RRF.
         # ----------------------------------------------------
 
         bm25_results = self.bm25_retriever.retrieve(
             query=query,
             limit=candidate_limit,
+            workspace_id=workspace_id,
+            document_ids=document_ids,
         )
+
+        # ----------------------------------------------------
+        # Retrieve candidates from vector search.
+        #
+        # Qdrant filtering is handled inside VectorRetriever
+        # / QdrantVectorStore using workspace_id.
+        # ----------------------------------------------------
 
         if vector_results is None:
             vector_results = self.vector_retriever.retrieve(
                 query=query,
                 limit=candidate_limit,
+                workspace_id=workspace_id,
+                document_ids=document_ids,
             )
 
         # ----------------------------------------------------
@@ -143,13 +193,13 @@ class HybridRetriever:
             reverse=True,
         )
 
-        final_results = []
+        final_results: list[RetrievalResult] = []
 
         for chunk_id in ranked_ids[:limit]:
             result = results_by_id[chunk_id]
 
             # Replace the individual retriever score with
-            # the final hybrid score.
+            # the final hybrid RRF score.
             final_results.append(
                 result.model_copy(
                     update={
@@ -168,6 +218,13 @@ class HybridRetriever:
     ) -> None:
         """
         Add one ranked result list to the RRF accumulator.
+
+        RRF formula:
+
+            1 / (rrf_k + rank)
+
+        A result appearing in both retrieval systems receives
+        contributions from both rankings.
         """
 
         for rank, result in enumerate(

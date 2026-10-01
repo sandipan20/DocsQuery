@@ -8,7 +8,7 @@ Endpoint:
     POST /api/v1/query
 """
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.api.v1.schemas import (
     Citation,
@@ -23,6 +23,7 @@ from app.generation.llm import (
     LLMServiceError,
     LLMServiceUnavailableError,
 )
+from app.security.session import get_or_create_session_id
 from app.services.rag_service import (
     InsufficientEvidenceError,
 )
@@ -39,6 +40,7 @@ router = APIRouter(
 )
 def query(
     request: Request,
+    response: Response,
     body: QueryRequest,
 ) -> QueryResponse:
     """
@@ -46,11 +48,24 @@ def query(
     """
 
     container = request.app.state.container
+    workspace_id = get_or_create_session_id(
+        request=request,
+        response=response,
+    )
+    if body.document_ids is not None:
+        owned_ids = {
+            document.document_id
+            for document in container.document_service.list_documents(workspace_id)
+        }
+        if not set(body.document_ids).issubset(owned_ids):
+            raise HTTPException(status_code=404, detail="Document not found.")
 
     try:
         response = container.rag_service.query(
             query=body.query,
             top_k=body.top_k,
+            workspace_id=workspace_id,
+            document_ids=body.document_ids,
         )
 
     except InsufficientEvidenceError as exc:

@@ -18,6 +18,16 @@ On startup:
     DocumentChunks
         ↓
     BM25 index
+
+Workspace isolation:
+
+    User Session
+        ↓
+    workspace_id
+        ↓
+    BM25Retriever
+        ↓
+    Only chunks belonging to that workspace
 """
 
 from app.ingestion.models import DocumentChunk
@@ -80,6 +90,9 @@ class BM25Index:
             Number of loaded chunks.
 
         Raises:
+            RuntimeError:
+                If BM25 storage is not configured.
+
             FileNotFoundError:
                 If no persisted index exists.
         """
@@ -97,12 +110,32 @@ class BM25Index:
         self,
         query: str,
         limit: int = 10,
+        workspace_id: str = "public",
     ):
         """
         Search the BM25 index.
+
+        Args:
+            query:
+                User's search query.
+
+            limit:
+                Maximum number of results.
+
+            workspace_id:
+                Workspace whose documents are allowed
+                to appear in the results.
+
+        Returns:
+            BM25 retrieval results belonging only to the
+            requested workspace.
         """
+
+        if not workspace_id.strip():
+            raise ValueError("workspace_id cannot be empty.")
 
         return self.retriever.retrieve(
             query=query,
             limit=limit,
+            workspace_id=workspace_id,
         )

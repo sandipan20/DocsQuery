@@ -8,6 +8,7 @@ Current endpoints:
 
     GET  /health
     GET  /ready
+    GET  /api/v1/session
     POST /api/v1/search
     POST /api/v1/query
 """
@@ -21,8 +22,10 @@ from app.api.errors import (
     unexpected_exception_handler,
 )
 from app.api.middleware import request_id_middleware
+from app.api.v1.documents import router as documents_router
 from app.api.v1.query import router as query_router
 from app.api.v1.search import router as search_router
+from app.api.v1.session import router as session_router
 from app.config.settings import get_settings
 from app.container import AppContainer
 from app.logging_config import configure_logging
@@ -133,6 +136,17 @@ def create_app() -> FastAPI:
     # Register API routers
     # --------------------------------------------------------
 
+    # Session endpoint:
+    #
+    # GET /api/v1/session
+    #
+    # Creates an anonymous server-side session when the
+    # browser does not already have one.
+    app.include_router(
+        session_router,
+        prefix="/api/v1",
+    )
+
     # Search endpoint:
     #
     # POST /api/v1/search
@@ -149,6 +163,11 @@ def create_app() -> FastAPI:
         prefix="/api/v1",
     )
 
+    app.include_router(
+        documents_router,
+        prefix="/api/v1",
+    )
+
     app.middleware("http")(request_id_middleware)
 
     settings = get_settings()
@@ -157,8 +176,9 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.api_cors_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "X-Request-ID"],
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS", "HEAD", "PUT", "PATCH"],
+        allow_headers=["*"],
+        expose_headers=["X-Session-ID", "X-Request-ID", "X-Workspace-ID"],
     )
 
     app.add_exception_handler(
@@ -167,6 +187,18 @@ def create_app() -> FastAPI:
     )
 
     configure_logging()
+
+    # Serve compiled frontend static files if available
+    from pathlib import Path
+    frontend_dist = Path("frontend/dist")
+    if frontend_dist.is_dir():
+        from fastapi.staticfiles import StaticFiles
+
+        app.mount(
+            "/",
+            StaticFiles(directory=str(frontend_dist), html=True),
+            name="static",
+        )
 
     return app
 

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from app.evaluation.dataset import load_evaluation_dataset
-from app.retrieval.bm25_storage import BM25Storage
+from app.ingestion.pipeline import ingest_pdf
 
 
 def test_dataset_loads(tmp_path: Path):
@@ -116,10 +116,12 @@ def test_real_evaluation_chunk_ids_exist():
     # Load the evaluation labels.
     dataset = load_evaluation_dataset("data/evaluation/retrieval_dataset.json")
 
-    # Load the actual indexed chunks.
-    storage = BM25Storage("data/index/bm25.json")
-
-    chunks = storage.load()
+    # Build expected IDs from evaluation source PDFs, not the runtime index.
+    chunks = [
+        chunk
+        for pdf_path in sorted(Path("data/raw").glob("*.pdf"))
+        for chunk in ingest_pdf(str(pdf_path))
+    ]
 
     # Build a fast lookup set of actual chunk IDs.
     actual_chunk_ids = {chunk.chunk_id for chunk in chunks}

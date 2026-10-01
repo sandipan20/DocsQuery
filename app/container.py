@@ -17,12 +17,14 @@ Current dependencies:
 """
 
 from app.config.settings import get_settings
+from app.documents.service import DocumentService
 from app.generation.citation_validator import CitationValidator
 from app.generation.context_builder import ContextBuilder
 from app.generation.llm import LLMService
 from app.retrieval.bm25_index import BM25Index
 from app.retrieval.bm25_storage import BM25Storage
 from app.retrieval.confidence import RetrievalConfidenceGate
+from app.retrieval.indexer import VectorIndexer
 from app.retrieval.reranker import CrossEncoderReranker
 from app.retrieval.vector_retriever import VectorRetriever
 from app.services.generation_service import GenerationService
@@ -62,6 +64,10 @@ class AppContainer:
         # ----------------------------------------------------
 
         self.vector_retriever = VectorRetriever()
+        self.vector_indexer = VectorIndexer(
+            embedding_service=self.vector_retriever.embedding_service,
+            vector_store=self.vector_retriever.vector_store,
+        )
 
         # ----------------------------------------------------
         # Cross-encoder reranker
@@ -112,6 +118,12 @@ class AppContainer:
             top_k=settings.reranker_top_k,
         )
 
+        self.document_service = DocumentService(
+            bm25_index=self.bm25_index,
+            vector_indexer=self.vector_indexer,
+            vector_store=self.vector_retriever.vector_store,
+        )
+
         # ----------------------------------------------------
         # Application readiness state
         # ----------------------------------------------------
@@ -145,19 +157,26 @@ class AppContainer:
 
     def load_indexes(self) -> int:
         """
-        Load persistent retrieval indexes.
+        Load only persisted user-workspace chunks.
 
         Returns:
-            Number of BM25 chunks loaded.
+            Number of non-public BM25 chunks loaded.
         """
 
-        # If no persisted BM25 index exists, the application
-        # is not ready for retrieval yet.
-        if not self.bm25_index.storage.exists():
-            return 0
+        self.bm25_loaded = False
+        chunks = []
+        if self.bm25_index.storage.exists():
+            chunks = [
+                chunk
+                for chunk in self.bm25_index.storage.load()
+                if chunk.workspace_id != "public"
+            ]
 
-        count = self.bm25_index.load()
+        # Public chunks are reserved for offline evaluation. Rewrite the local
+        # runtime artifact without them while retaining private workspaces.
+        count = self.bm25_index.build(chunks, persist=True)
 
-        self.bm25_loaded = count > 0
+        # An empty but initialized index is ready to accept the first upload.
+        self.bm25_loaded = True
 
         return count

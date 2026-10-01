@@ -38,6 +38,12 @@ class DocumentChunk(BaseModel):
     # Identifier shared by all chunks from the same document.
     document_id: str
 
+    # Identifies which workspace owns this chunk.
+    #
+    # "public" is used for the existing DocsQuery corpus.
+    # Later, uploaded PDFs will use the anonymous session ID.
+    workspace_id: str = "public"
+
     # Searchable chunk text.
     text: str
 
@@ -49,3 +55,6 @@ class DocumentChunk(BaseModel):
 
     # Position of the chunk within the document.
     chunk_index: int = Field(ge=0)
+
+    # Total pages in the source document, retained for listing metadata.
+    document_page_count: int | None = Field(default=None, ge=1)

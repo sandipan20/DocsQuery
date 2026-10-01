@@ -29,6 +29,12 @@ class SearchRequest(BaseModel):
         le=50,
     )
 
+    document_ids: list[str] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=10,
+    )
+
 
 class SearchResult(BaseModel):
     """
@@ -80,6 +86,12 @@ class QueryRequest(BaseModel):
         default=5,
         ge=1,
         le=10,
+    )
+
+    document_ids: list[str] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=10,
     )
 
 

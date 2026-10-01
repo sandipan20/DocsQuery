@@ -22,6 +22,9 @@ class RetrievalResult(BaseModel):
     # Source document identifier.
     document_id: str
 
+    # Workspace that owns the retrieved chunk.
+    workspace_id: str = "public"
+
     # Actual text used by the LLM.
     text: str
 

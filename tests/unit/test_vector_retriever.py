@@ -121,6 +121,8 @@ def test_query_vector_is_sent_to_qdrant():
     vector_store.search.assert_called_once_with(
         query_vector=query_vector,
         limit=5,
+        workspace_id="public",
+        document_ids=None,
     )
 
     assert len(results) == 1

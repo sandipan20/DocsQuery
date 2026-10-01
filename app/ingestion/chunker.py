@@ -134,4 +134,6 @@ def chunk_pages(
 
         chunk.chunk_id = f"{document_id}-chunk-{global_index}"
 
+        chunk.document_page_count = len(pages)
+
     return chunks

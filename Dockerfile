@@ -35,9 +35,6 @@ COPY pyproject.toml README.md ./
 COPY app ./app
 COPY scripts ./scripts
 
-# Production BM25 retrieval artifact
-COPY data/index ./data/index
-
 # CPU-only PyTorch
 RUN pip install \
         --index-url https://download.pytorch.org/whl/cpu \
@@ -124,14 +121,6 @@ COPY --from=builder /opt/huggingface /opt/huggingface
 COPY --from=builder /app/app ./app
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/pyproject.toml ./
-
-# Immutable BM25 retrieval artifact
-COPY --from=builder /app/data/index ./data/index
-
-RUN test -s /app/data/index/bm25.json \
-    && echo "BM25 artifact present: OK" \
-    || (echo "BM25 artifact missing or empty" && exit 1)
-
 
 # Non-root runtime user
 RUN useradd \

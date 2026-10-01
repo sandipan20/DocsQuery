@@ -56,6 +56,25 @@ class CitationValidator:
     #
     CITATION_PATTERN = re.compile(r"\[C(\d+)\]")
 
+    REFUSAL_PHRASES = (
+        "do not contain enough information",
+        "does not contain enough information",
+        "do not provide enough information",
+        "does not provide enough information",
+        "cannot be answered based on the provided",
+        "not enough information is provided",
+        "no information is provided",
+        "available documents do not",
+        "provided documents do not",
+    )
+
+    def is_refusal(self, answer: str) -> bool:
+        """
+        Check if the answer is a statement indicating the evidence is insufficient.
+        """
+        lower = answer.lower()
+        return any(phrase in lower for phrase in self.REFUSAL_PHRASES)
+
     def validate(
         self,
         answer: str,
@@ -86,6 +105,10 @@ class CitationValidator:
 
         if not contexts:
             raise CitationValidationError("No citation context is available.")
+
+        # Negative/refusal statements stating lack of information do not cite evidence.
+        if self.is_refusal(answer):
+            return
 
         # ----------------------------------------------------
         # Build the set of citation IDs that actually exist.
@@ -237,6 +260,18 @@ class CitationValidator:
         )
 
         sentences = pattern.findall(text)
+
+        # If there is unpunctuated text remaining (e.g. bullet points without periods),
+        # ensure it is included as a sentence rather than silently omitted.
+        if sentences:
+            last_end = 0
+            for match in pattern.finditer(text):
+                last_end = match.end()
+            remainder = text[last_end:].strip()
+            if remainder and any(char.isalnum() for char in remainder):
+                sentences.append(remainder)
+        elif text.strip() and any(char.isalnum() for char in text):
+            sentences = [text.strip()]
 
         return [sentence.strip() for sentence in sentences if sentence.strip()]
 

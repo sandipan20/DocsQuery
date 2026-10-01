@@ -124,3 +124,40 @@ def test_empty_query_is_rejected():
             query="",
             results=[create_result()],
         )
+
+
+def test_generate_retries_and_succeeds_on_initial_citation_error():
+    llm = MagicMock()
+    llm.generate.side_effect = [
+        "Python is a programming language.",
+        "Python is a programming language. [C1]",
+    ]
+    service = GenerationService(
+        llm_service=llm,
+        context_builder=ContextBuilder(),
+        citation_validator=CitationValidator(),
+    )
+
+    result = service.generate(
+        query="What is Python?",
+        results=[create_result()],
+    )
+
+    assert result.answer == "Python is a programming language. [C1]"
+    assert result.citations == ["C1"]
+    assert llm.generate.call_count == 2
+
+
+def test_generate_handles_insufficient_information_refusal():
+    service = create_service(
+        "The provided documents do not contain enough information to answer "
+        "this question."
+    )
+
+    result = service.generate(
+        query="What is quantum mechanics?",
+        results=[create_result()],
+    )
+
+    assert "do not contain enough information" in result.answer
+    assert result.citations == []

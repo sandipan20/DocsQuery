@@ -1,0 +1,121 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+
+:root {
+  --cyber-bg: #07090e;
+  --cyber-bg-surface: #0c1017;
+  --cyber-bg-elevated: #111722;
+  --cyber-cyan: #00f0ff;
+  --cyber-cyan-glow: rgba(0, 240, 255, 0.4);
+  --cyber-magenta: #ff007f;
+  --cyber-purple: #9d4edd;
+  --cyber-green: #00ff88;
+  --cyber-amber: #ffaa00;
+  --cyber-border: rgba(0, 240, 255, 0.16);
+  --cyber-border-hover: rgba(0, 240, 255, 0.45);
+  --cyber-text: #e2e8f0;
+  --cyber-text-dim: #79879c;
+  --cyber-text-bright: #ffffff;
+
+  font-family: "Rajdhani", "Geist Variable", system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--cyber-text);
+  background: var(--cyber-bg);
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --cyber-bg: #f1f5f9;
+  --cyber-bg-surface: #ffffff;
+  --cyber-bg-elevated: #f8fafc;
+  --cyber-cyan: #0284c7;
+  --cyber-cyan-glow: rgba(2, 132, 199, 0.25);
+  --cyber-magenta: #e11d48;
+  --cyber-purple: #7c3aed;
+  --cyber-green: #059669;
+  --cyber-amber: #d97706;
+  --cyber-border: rgba(2, 132, 199, 0.2);
+  --cyber-border-hover: rgba(2, 132, 199, 0.5);
+  --cyber-text: #1e293b;
+  --cyber-text-dim: #64748b;
+  --cyber-text-bright: #0f172a;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background-color: var(--cyber-bg);
+  background-image: 
+    radial-gradient(circle at 15% 15%, rgba(0, 240, 255, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 85% 85%, rgba(157, 78, 221, 0.08) 0%, transparent 40%),
+    linear-gradient(rgba(0, 240, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 255, 0.025) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+  overflow-x: hidden;
+  transition: background-color 220ms ease, color 220ms ease;
+}
+
+:root[data-theme="light"] body {
+  background-image: 
+    radial-gradient(circle at 15% 15%, rgba(2, 132, 199, 0.09) 0%, transparent 40%),
+    radial-gradient(circle at 85% 85%, rgba(124, 58, 237, 0.06) 0%, transparent 40%),
+    linear-gradient(rgba(2, 132, 199, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(2, 132, 199, 0.04) 1px, transparent 1px);
+}
+
+button, textarea, input {
+  font-family: inherit;
+}
+
+button:focus-visible, textarea:focus-visible, input:focus-visible {
+  outline: 2px solid var(--cyber-cyan);
+  outline-offset: 2px;
+  box-shadow: 0 0 12px var(--cyber-cyan-glow);
+}
+
+::selection {
+  color: #07090e;
+  background: var(--cyber-cyan);
+}
+
+/* Cyber scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(7, 9, 14, 0.8);
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.22);
+  border-radius: 3px;
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(2, 132, 199, 0.3);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 240, 255, 0.5);
+  box-shadow: 0 0 8px var(--cyber-cyan-glow);
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(2, 132, 199, 0.6);
+  box-shadow: 0 0 8px var(--cyber-cyan-glow);
+}

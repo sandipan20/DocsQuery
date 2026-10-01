@@ -106,7 +106,7 @@ def test_search_delegates_to_retrieval_pipeline():
 
     (
         service,
-        _,
+        bm25_index,
         vector_retriever,
         reranker,
         confidence_gate,
@@ -131,6 +131,8 @@ def test_search_delegates_to_retrieval_pipeline():
     vector_retriever.retrieve.assert_called_once_with(
         query="What is Python?",
         limit=20,
+        workspace_id="public",
+        document_ids=None,
     )
 
     # Verify the confidence gate received vector results.
@@ -145,6 +147,8 @@ def test_search_delegates_to_retrieval_pipeline():
         limit=20,
         candidate_limit=20,
         vector_results=vector_results,
+        workspace_id="public",
+        document_ids=None,
     )
 
     # Verify the candidates were passed to the reranker.
@@ -165,7 +169,7 @@ def test_search_abstains_when_vector_confidence_is_low():
 
     (
         service,
-        _,
+        bm25_index,
         vector_retriever,
         reranker,
         confidence_gate,
@@ -176,6 +180,7 @@ def test_search_abstains_when_vector_confidence_is_low():
 
     # The confidence gate rejects the vector results.
     confidence_gate.is_confident.return_value = False
+    bm25_index.retriever.retrieve.return_value = []
 
     service.hybrid_retriever = MagicMock()
 
@@ -189,6 +194,8 @@ def test_search_abstains_when_vector_confidence_is_low():
     vector_retriever.retrieve.assert_called_once_with(
         query="This query is outside the indexed corpus.",
         limit=20,
+        workspace_id="public",
+        document_ids=None,
     )
 
     confidence_gate.is_confident.assert_called_once_with(
@@ -198,11 +205,96 @@ def test_search_abstains_when_vector_confidence_is_low():
     # Low confidence means no hybrid retrieval.
     service.hybrid_retriever.retrieve.assert_not_called()
 
+    bm25_index.retriever.retrieve.assert_called_once_with(
+        query="This query is outside the indexed corpus.",
+        limit=20,
+        workspace_id="public",
+        document_ids=None,
+    )
+
     # No reranking should happen either.
     reranker.rerank.assert_not_called()
 
     # The service abstains by returning no results.
     assert results == []
+
+
+def test_search_uses_lexical_matches_when_vector_confidence_is_low():
+    (
+        service,
+        bm25_index,
+        _,
+        reranker,
+        confidence_gate,
+        _,
+        _,
+        final_results,
+    ) = create_service()
+    confidence_gate.is_confident.return_value = False
+    lexical_result = create_result("lexical-match")
+    lexical_result.score = 1.25
+    bm25_index.retriever.retrieve.return_value = [lexical_result]
+    reranker.rerank.return_value = final_results
+    service.hybrid_retriever = MagicMock()
+
+    results = service.search(
+        query="A precise phrase from the uploaded PDF",
+        limit=3,
+        workspace_id="session-123",
+        document_ids=["doc-001"],
+    )
+
+    bm25_index.retriever.retrieve.assert_called_once_with(
+        query="A precise phrase from the uploaded PDF",
+        limit=20,
+        workspace_id="session-123",
+        document_ids=["doc-001"],
+    )
+    service.hybrid_retriever.retrieve.assert_not_called()
+    reranker.rerank.assert_called_once_with(
+        query="A precise phrase from the uploaded PDF",
+        results=[lexical_result],
+        top_k=3,
+    )
+    assert results == final_results
+
+
+def test_search_uses_semantic_matches_for_private_workspace_when_bm25_empty():
+    (
+        service,
+        bm25_index,
+        vector_retriever,
+        reranker,
+        confidence_gate,
+        vector_results,
+        _,
+        final_results,
+    ) = create_service()
+    confidence_gate.is_confident.return_value = False
+    bm25_index.retriever.retrieve.return_value = []
+    reranker.rerank.return_value = final_results
+    service.hybrid_retriever = MagicMock()
+
+    results = service.search(
+        query="what is math",
+        limit=3,
+        workspace_id="session-123",
+        document_ids=["doc-001"],
+    )
+
+    bm25_index.retriever.retrieve.assert_called_once_with(
+        query="what is math",
+        limit=20,
+        workspace_id="session-123",
+        document_ids=["doc-001"],
+    )
+    service.hybrid_retriever.retrieve.assert_not_called()
+    reranker.rerank.assert_called_once_with(
+        query="what is math",
+        results=vector_results,
+        top_k=3,
+    )
+    assert results == final_results
 
 
 def test_retriever_errors_are_propagated():

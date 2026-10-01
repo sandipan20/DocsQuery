@@ -98,35 +98,49 @@ class LLMService:
         if not context.strip():
             raise ValueError("Context cannot be empty.")
 
-        # Send the question and retrieved evidence to Gemini.
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=build_user_prompt(
-                    query=query,
-                    context=context,
-                ),
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
-                    temperature=self.temperature,
-                    max_output_tokens=self.max_tokens,
-                ),
-            )
+        # Send prompt to Gemini with retry on transient server errors.
+        import time
 
-        except errors.ServerError as exc:
-            # Gemini currently reports temporary service-side
-            # failures such as HTTP 503 through ServerError.
+        max_attempts = 3
+        last_server_error = None
+
+        for attempt in range(max_attempts):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    contents=build_user_prompt(
+                        query=query,
+                        context=context,
+                    ),
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_PROMPT,
+                        temperature=self.temperature,
+                        max_output_tokens=self.max_tokens,
+                    ),
+                )
+                break
+            except errors.ServerError as exc:
+                last_server_error = exc
+                if attempt < max_attempts - 1:
+                    time.sleep(1.2 * (attempt + 1))
+                    continue
+                raise LLMServiceUnavailableError(
+                    "The language model is temporarily unavailable. "
+                    "Please try again later."
+                ) from exc
+            except errors.APIError as exc:
+                is_transient = "503" in str(exc) or "429" in str(exc)
+                if attempt < max_attempts - 1 and is_transient:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise LLMServiceError(
+                    "The language model service failed to generate a response."
+                ) from exc
+        else:
             raise LLMServiceUnavailableError(
-                "The language model is temporarily unavailable. Please try again later."
-            ) from exc
-
-        except errors.APIError as exc:
-            # Convert other Gemini API failures into an
-            # application-specific exception instead of
-            # leaking provider exceptions through the API.
-            raise LLMServiceError(
-                "The language model service failed to generate a response."
-            ) from exc
+                "The language model is temporarily unavailable. "
+                "Please try again later."
+            ) from last_server_error
 
         # Gemini should always return text for this use case.
         if not response.text:

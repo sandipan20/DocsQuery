@@ -20,6 +20,12 @@ from uuid import NAMESPACE_URL, uuid5
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
+    FieldCondition,
+    Filter,
+    FilterSelector,
+    MatchAny,
+    MatchValue,
+    PayloadSchemaType,
     PointStruct,
     VectorParams,
 )
@@ -56,15 +62,13 @@ class QdrantVectorStore:
 
         self.collection_name = collection_name or settings.qdrant_collection
 
-        self.api_key = settings.qdrant_api_key or None
-
-        # Create the Qdrant client.
+        # Connect to Qdrant.
         #
-        # Local development uses no API key.
-        # Production Qdrant Cloud uses the configured API key.
+        # For local development this can connect to localhost.
+        # For production/cloud this uses the configured API key.
         self.client = QdrantClient(
             url=self.url,
-            api_key=self.api_key,
+            api_key=settings.qdrant_api_key or None,
         )
 
     def create_collection(
@@ -86,6 +90,7 @@ class QdrantVectorStore:
 
         # Don't recreate an existing collection.
         if self.collection_name in existing_names:
+            self._ensure_payload_indexes()
             return
 
         # Create a collection using cosine similarity.
@@ -99,6 +104,15 @@ class QdrantVectorStore:
                 distance=Distance.COSINE,
             ),
         )
+        self._ensure_payload_indexes()
+
+    def _ensure_payload_indexes(self) -> None:
+        for field_name in ("workspace_id", "document_id"):
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name=field_name,
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
 
     def upsert_chunks(
         self,
@@ -131,7 +145,9 @@ class QdrantVectorStore:
         # Create the collection if necessary.
         #
         # The first embedding tells us the vector dimension.
-        self.create_collection(vector_size=len(embeddings[0]))
+        self.create_collection(
+            vector_size=len(embeddings[0]),
+        )
 
         points = []
 
@@ -141,24 +157,25 @@ class QdrantVectorStore:
             strict=True,
         ):
             # ------------------------------------------------
-            # Qdrant point IDs cannot be arbitrary strings.
+            # SECURITY / ISOLATION:
             #
-            # Qdrant accepts:
-            #   - unsigned integers
-            #   - UUIDs
+            # Include workspace_id in the deterministic point ID.
             #
-            # Our chunk_id is a string such as:
+            # Why?
+            # ----
+            # Two different users can upload the exact same PDF.
             #
-            # 7f0b6770...-chunk-0
+            # Because document_id and chunk_id are deterministic,
+            # the chunk IDs can otherwise be identical.
             #
-            # Therefore we deterministically convert the
-            # chunk_id into a UUID using UUID5.
+            # Including workspace_id prevents one user's point
+            # from overwriting another user's point.
             # ------------------------------------------------
 
             point_id = str(
                 uuid5(
                     NAMESPACE_URL,
-                    chunk.chunk_id,
+                    f"{chunk.workspace_id}:{chunk.chunk_id}",
                 )
             )
 
@@ -169,6 +186,8 @@ class QdrantVectorStore:
                     payload={
                         # Application-level document identity.
                         "document_id": chunk.document_id,
+                        # Workspace that owns this chunk.
+                        "workspace_id": chunk.workspace_id,
                         # Application-level chunk identity.
                         "chunk_id": chunk.chunk_id,
                         # Actual text used during retrieval.
@@ -177,6 +196,7 @@ class QdrantVectorStore:
                         "source": chunk.source,
                         "page_number": chunk.page_number,
                         "chunk_index": chunk.chunk_index,
+                        "document_page_count": chunk.document_page_count,
                     },
                 )
             )
@@ -187,9 +207,9 @@ class QdrantVectorStore:
         #   new point      → create
         #   existing point → update
         #
-        # Because point_id is deterministic, re-indexing the
-        # same document will update the same Qdrant points
-        # instead of creating duplicates.
+        # Because the point ID is deterministic within a
+        # workspace, re-indexing the same document updates
+        # the same point instead of creating duplicates.
         # ----------------------------------------------------
 
         self.client.upsert(
@@ -201,6 +221,8 @@ class QdrantVectorStore:
         self,
         query_vector: list[float],
         limit: int = 10,
+        workspace_id: str = "public",
+        document_ids: list[str] | None = None,
     ) -> list[RetrievalResult]:
         """
         Search Qdrant using a query embedding.
@@ -212,6 +234,10 @@ class QdrantVectorStore:
             limit:
                 Maximum number of results.
 
+            workspace_id:
+                Workspace whose documents are allowed to
+                participate in retrieval.
+
         Returns:
             RetrievalResult objects ordered by relevance.
         """
@@ -219,11 +245,43 @@ class QdrantVectorStore:
         if limit <= 0:
             raise ValueError("limit must be greater than 0")
 
-        results = self.client.query_points(
-            collection_name=self.collection_name,
-            query=query_vector,
-            limit=limit,
-        ).points
+        if not workspace_id.strip():
+            raise ValueError("workspace_id cannot be empty.")
+        if document_ids == []:
+            return []
+
+        # ----------------------------------------------------
+        # SECURITY:
+        #
+        # Apply the workspace restriction INSIDE Qdrant.
+        #
+        # We do NOT:
+        #
+        #   1. retrieve all users' documents
+        #   2. retrieve top results
+        #   3. filter them afterward
+        #
+        # Qdrant performs the ownership filter as part of
+        # the vector query itself.
+        # ----------------------------------------------------
+
+        workspace_filter = self._document_filter(
+            workspace_id=workspace_id,
+            document_ids=document_ids,
+        )
+
+        try:
+            results = self.client.query_points(
+                collection_name=self.collection_name,
+                query=query_vector,
+                query_filter=workspace_filter,
+                limit=limit,
+                with_payload=True,
+            ).points
+        except Exception as exc:
+            if "not found" in str(exc).lower():
+                return []
+            raise
 
         retrieval_results = []
 
@@ -234,6 +292,10 @@ class QdrantVectorStore:
                 RetrievalResult(
                     chunk_id=payload["chunk_id"],
                     document_id=payload["document_id"],
+                    workspace_id=payload.get(
+                        "workspace_id",
+                        "public",
+                    ),
                     text=payload["text"],
                     source=payload["source"],
                     page_number=payload["page_number"],
@@ -243,6 +305,75 @@ class QdrantVectorStore:
             )
 
         return retrieval_results
+
+    def scroll_document_chunks(
+        self,
+        workspace_id: str,
+        document_id: str | None = None,
+    ) -> list[dict]:
+        if not workspace_id.strip():
+            raise ValueError("workspace_id cannot be empty.")
+
+        query_filter = self._document_filter(
+            workspace_id=workspace_id,
+            document_ids=[document_id] if document_id else None,
+        )
+        chunks: list[dict] = []
+        offset = None
+
+        while True:
+            points, offset = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=query_filter,
+                limit=256,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            chunks.extend(point.payload or {} for point in points)
+            if offset is None:
+                return chunks
+
+    def delete_document(
+        self,
+        workspace_id: str,
+        document_id: str,
+    ) -> None:
+        self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=FilterSelector(
+                filter=self._document_filter(
+                    workspace_id=workspace_id,
+                    document_ids=[document_id],
+                )
+            ),
+        )
+
+    @staticmethod
+    def _document_filter(
+        workspace_id: str,
+        document_ids: list[str] | None = None,
+    ) -> Filter:
+        if not workspace_id.strip():
+            raise ValueError("workspace_id cannot be empty.")
+        if document_ids == []:
+            raise ValueError("document_ids cannot be empty.")
+        conditions = [
+            FieldCondition(
+                key="workspace_id",
+                match=MatchValue(value=workspace_id),
+            )
+        ]
+        if document_ids:
+            conditions.append(
+                FieldCondition(
+                    key="document_id",
+                    match=MatchValue(value=document_ids[0])
+                    if len(document_ids) == 1
+                    else MatchAny(any=document_ids),
+                )
+            )
+        return Filter(must=conditions)
 
     def recreate_collection(
         self,
@@ -260,19 +391,17 @@ class QdrantVectorStore:
             and all vectors stored inside it.
         """
 
-        # Get all collections currently available in Qdrant.
         collections = self.client.get_collections()
 
-        # Extract their names so we can check whether our
-        # collection already exists.
         existing_names = {collection.name for collection in collections.collections}
 
         # Delete the old collection when it exists.
         if self.collection_name in existing_names:
-            self.client.delete_collection(collection_name=self.collection_name)
+            self.client.delete_collection(
+                collection_name=self.collection_name,
+            )
 
-        # Create a completely clean collection using the
-        # embedding vector dimension supplied by the caller.
+        # Create a completely clean collection.
         self.client.create_collection(
             collection_name=self.collection_name,
             vectors_config=VectorParams(

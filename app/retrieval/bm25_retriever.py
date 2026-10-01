@@ -18,15 +18,64 @@ Current architecture:
         ↓
     Query
         ↓
+    Workspace Filter
+        ↓
     Ranked RetrievalResult
 """
 
+import math
 import re
 
 from rank_bm25 import BM25Okapi
 
 from app.ingestion.models import DocumentChunk
 from app.retrieval.models import RetrievalResult
+
+
+def compute_bm25_scores(
+    tokenized_documents: list[list[str]],
+    query_tokens: list[str],
+    k1: float = 1.5,
+    b: float = 0.75,
+) -> list[float]:
+    """
+    Compute non-negative BM25 scores for tokenized documents.
+
+    Uses Robertson-Spärck-Jones / Lucene non-negative IDF so that
+    query terms present in small user-uploaded corpora (e.g. 1-5 chunks)
+    always produce strictly positive scores rather than negative IDFs.
+    """
+    corpus_size = len(tokenized_documents)
+    if corpus_size == 0 or not query_tokens:
+        return [0.0] * corpus_size
+
+    total_len = sum(len(doc) for doc in tokenized_documents)
+    avgdl = (total_len / corpus_size) if corpus_size > 0 else 1.0
+
+    doc_freqs: list[dict[str, int]] = []
+    for doc in tokenized_documents:
+        freqs: dict[str, int] = {}
+        for token in doc:
+            freqs[token] = freqs.get(token, 0) + 1
+        doc_freqs.append(freqs)
+
+    scores = [0.0] * corpus_size
+    doc_lens = [len(doc) for doc in tokenized_documents]
+
+    for q_token in query_tokens:
+        n = sum(1 for df in doc_freqs if q_token in df)
+        if n == 0:
+            continue
+
+        idf = max(0.0, math.log(1.0 + (corpus_size - n + 0.5) / (n + 0.5)))
+        for i, df in enumerate(doc_freqs):
+            tf = df.get(q_token, 0)
+            if tf > 0:
+                numerator = tf * (k1 + 1.0)
+                denominator = tf + k1 * (1.0 - b + b * (doc_lens[i] / (avgdl or 1.0)))
+                scores[i] += idf * (numerator / denominator)
+
+    return scores
 
 # ------------------------------------------------------------
 # Common English stopwords.
@@ -170,6 +219,8 @@ class BM25Retriever:
         self,
         query: str,
         limit: int = 10,
+        workspace_id: str = "public",
+        document_ids: list[str] | None = None,
     ) -> list[RetrievalResult]:
         """
         Retrieve chunks using BM25.
@@ -181,8 +232,13 @@ class BM25Retriever:
             limit:
                 Maximum number of results.
 
+            workspace_id:
+                Workspace whose documents are allowed to appear
+                in the results.
+
         Returns:
-            BM25-ranked RetrievalResult objects.
+            BM25-ranked RetrievalResult objects belonging only
+            to the requested workspace.
         """
 
         if not query.strip():
@@ -191,8 +247,8 @@ class BM25Retriever:
         if limit <= 0:
             raise ValueError("limit must be greater than 0.")
 
-        # Searching is impossible until an index has been built.
-        if self.bm25 is None:
+        # Searching is impossible until chunks have been indexed.
+        if not self.chunks:
             return []
 
         # Apply the exact same preprocessing to the query
@@ -204,27 +260,38 @@ class BM25Retriever:
         if not query_tokens:
             return []
 
-        # Calculate one BM25 score for every indexed chunk.
-        scores = self.bm25.get_scores(query_tokens)
+        # Select the authorized corpus before computing BM25 statistics.
+        scoped_chunks = [
+            chunk
+            for chunk in self.chunks
+            if chunk.workspace_id == workspace_id
+            and (document_ids is None or chunk.document_id in document_ids)
+        ]
+        if not scoped_chunks:
+            return []
 
-        # Sort document indexes by descending BM25 score.
+        tokenized_scoped = [tokenize(chunk.text) for chunk in scoped_chunks]
+        scores = compute_bm25_scores(tokenized_scoped, query_tokens)
+
         ranked_indexes = sorted(
-            range(len(scores)),
+            range(len(scoped_chunks)),
             key=lambda index: scores[index],
             reverse=True,
         )
 
         results: list[RetrievalResult] = []
 
-        # Convert the highest-ranked chunks into the common
-        # RetrievalResult model used by the rest of DocsQuery.
+        # Convert the highest-ranked workspace-owned chunks
+        # into the common RetrievalResult model used by the
+        # rest of DocsQuery.
         for index in ranked_indexes[:limit]:
-            chunk = self.chunks[index]
+            chunk = scoped_chunks[index]
 
             results.append(
                 RetrievalResult(
                     chunk_id=chunk.chunk_id,
                     document_id=chunk.document_id,
+                    workspace_id=chunk.workspace_id,
                     text=chunk.text,
                     source=chunk.source,
                     page_number=chunk.page_number,

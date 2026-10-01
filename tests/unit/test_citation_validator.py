@@ -214,11 +214,25 @@ def test_partial_citation_coverage(
     assert validator.citation_coverage(answer) == 0.5
 
 
-def test_empty_answer_has_zero_coverage(
-    validator,
-):
-    """
-    An empty answer has no citation coverage.
-    """
-
     assert validator.citation_coverage("") == 0.0
+
+
+def test_refusal_answer_passes_without_citations(
+    validator,
+    contexts,
+):
+    answer = (
+        "The provided documents do not contain enough information to answer "
+        "this question."
+    )
+    validator.validate(answer, contexts)
+    assert validator.is_refusal(answer) is True
+
+
+def test_answer_without_trailing_period_passes(
+    validator,
+    contexts,
+):
+    answer = "Python is a programming language [C1]"
+    validator.validate(answer, contexts)
+    assert validator.extract_citations(answer) == ["C1"]

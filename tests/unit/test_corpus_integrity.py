@@ -14,13 +14,12 @@ from app.retrieval.bm25_storage import BM25Storage
 
 def test_all_persisted_chunk_ids_are_unique():
     """
-    Every persisted chunk must have a unique chunk ID.
+    Every persisted chunk must have a unique workspace/chunk ID pair.
 
     Why this matters:
 
-    Qdrant uses chunk IDs as vector point IDs. If two chunks
-    accidentally receive the same ID, one can overwrite the
-    other during indexing.
+    Qdrant point IDs include the workspace so identical documents
+    in different sessions can safely reuse deterministic chunk IDs.
     """
 
     settings = get_settings()
@@ -34,10 +33,9 @@ def test_all_persisted_chunk_ids_are_unique():
 
     chunks = storage.load()
 
-    chunk_ids = [chunk.chunk_id for chunk in chunks]
+    point_keys = [(chunk.workspace_id, chunk.chunk_id) for chunk in chunks]
 
-    # Number of IDs must equal number of unique IDs.
-    assert len(chunk_ids) == len(set(chunk_ids))
+    assert len(point_keys) == len(set(point_keys))
 
 
 def test_chunks_have_required_metadata():

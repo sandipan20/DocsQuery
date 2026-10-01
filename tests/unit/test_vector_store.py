@@ -111,3 +111,66 @@ def test_upsert_creates_qdrant_point(
     assert points[0].payload["document_id"] == "doc-001"
 
     assert points[0].payload["page_number"] == 1
+    assert {
+        call.kwargs["field_name"]
+        for call in fake_client.create_payload_index.call_args_list
+    } == {"workspace_id", "document_id"}
+
+
+@patch("app.retrieval.vector_store.QdrantClient")
+def test_identical_chunk_ids_use_distinct_point_ids_per_workspace(mock_client):
+    fake_client = mock_client.return_value
+    fake_client.get_collections.return_value.collections = []
+    store = QdrantVectorStore()
+    workspace_a_chunk = create_chunk().model_copy(
+        update={"workspace_id": "workspace-a"}
+    )
+    workspace_b_chunk = create_chunk().model_copy(
+        update={"workspace_id": "workspace-b"}
+    )
+
+    store.upsert_chunks(
+        chunks=[workspace_a_chunk, workspace_b_chunk],
+        embeddings=[[0.1, 0.2, 0.3], [0.1, 0.2, 0.3]],
+    )
+
+    points = fake_client.upsert.call_args.kwargs["points"]
+    assert points[0].payload["chunk_id"] == points[1].payload["chunk_id"]
+    assert points[0].id != points[1].id
+
+
+@patch("app.retrieval.vector_store.QdrantClient")
+def test_search_combines_workspace_and_selected_document_filters(mock_client):
+    fake_client = mock_client.return_value
+    fake_client.query_points.return_value.points = []
+    store = QdrantVectorStore()
+
+    store.search(
+        query_vector=[0.1, 0.2, 0.3],
+        workspace_id="workspace-a",
+        document_ids=["doc-a", "doc-b"],
+    )
+
+    query_filter = fake_client.query_points.call_args.kwargs["query_filter"]
+    assert len(query_filter.must) == 2
+    assert query_filter.must[0].key == "workspace_id"
+    assert query_filter.must[0].match.value == "workspace-a"
+    assert query_filter.must[1].key == "document_id"
+    assert query_filter.must[1].match.any == ["doc-a", "doc-b"]
+
+
+@patch("app.retrieval.vector_store.QdrantClient")
+def test_search_always_filters_by_workspace_when_all_documents_selected(mock_client):
+    fake_client = mock_client.return_value
+    fake_client.query_points.return_value.points = []
+    store = QdrantVectorStore()
+
+    store.search(
+        query_vector=[0.1, 0.2, 0.3],
+        workspace_id="workspace-a",
+    )
+
+    query_filter = fake_client.query_points.call_args.kwargs["query_filter"]
+    assert len(query_filter.must) == 1
+    assert query_filter.must[0].key == "workspace_id"
+    assert query_filter.must[0].match.value == "workspace-a"

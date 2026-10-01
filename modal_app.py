@@ -41,7 +41,7 @@ production_env = {
     "TOP_K_BM25": "20",
     "RERANKER_TOP_K": "5",
     "VECTOR_CONFIDENCE_THRESHOLD": "0.54",
-    "API_CORS_ORIGINS": "[]",
+    "API_CORS_ORIGINS": '["http://localhost:5173","http://localhost:5174"]',
 }
 
 

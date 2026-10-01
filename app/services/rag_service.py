@@ -91,6 +91,8 @@ class RAGService:
         self,
         query: str,
         top_k: int = 5,
+        workspace_id: str = "public",
+        document_ids: list[str] | None = None,
     ) -> RAGResponse:
         """
         Execute the complete RAG pipeline.
@@ -112,6 +114,8 @@ class RAGService:
                 results = self.retrieval_service.search(
                     query=query,
                     limit=top_k,
+                    workspace_id=workspace_id,
+                    document_ids=document_ids,
                 )
 
             # ------------------------------------------------

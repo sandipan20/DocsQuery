@@ -20,6 +20,8 @@ class FakeRetrievalService:
         self,
         query: str,
         limit: int,
+        workspace_id: str = "public",
+        document_ids: list[str] | None = None,
     ) -> list[RetrievalResult]:
         """
         Return predictable fake retrieval results.
