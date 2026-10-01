@@ -1,5 +1,7 @@
 # DocsQuery
 
+# live at - https://docsquery-api.onrender.com
+
 <div align="center">
 
 ![DocsQuery Architecture](https://img.shields.io/badge/Architecture-Hybrid%20RAG-00f2fe?style=for-the-badge&logo=diagramsdotnet)
