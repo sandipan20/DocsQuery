@@ -3,7 +3,7 @@ services:
     name: docsquery-api
     runtime: docker
     region: frankfurt
-    plan: 1c-2g
+    plan: free
 
     dockerfilePath: ./Dockerfile
     dockerContext: .
